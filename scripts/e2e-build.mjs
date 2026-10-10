@@ -20,13 +20,13 @@ const check = (label, cond) => { console.log((cond ? '✔ ' : '✘ ') + label); 
 
 // 1. Poste S placé au toucher puis validé
 const n0 = await count();
-await page.evaluate(() => { const g = window.game; g.cam.cx = 38; g.cam.cy = 32; g.cam.zoom = 22; });
+await page.evaluate(() => { const g = window.game; g.cam.cx = 46; g.cam.cy = 48; g.cam.zoom = 22; });
 await page.locator('.navbtn[data-id="build"]').click();
 await page.locator('.build-item', { hasText: 'Poste S' }).click();
-let p = await toScreen(39.5, 30.5);
+let p = await toScreen(47.5, 46.5);
 await page.touchscreen.tap(p.sx, p.sy);
 await page.waitForTimeout(200);
-const ghostOk = await page.evaluate(() => window.game.mode.kind === 'place' && window.game.mode.x === 38 && window.game.mode.y === 29);
+const ghostOk = await page.evaluate(() => window.game.mode.kind === 'place' && window.game.mode.x === 46 && window.game.mode.y === 45);
 check('fantôme positionné au toucher', ghostOk);
 await page.screenshot({ path: `${out}/20-ghost.png` });
 await page.locator('.placebar .iconbtn.active').click();
@@ -38,8 +38,8 @@ await page.locator('.placebar .iconbtn', { hasText: '✕' }).click();
 const n1 = await count();
 await page.locator('.navbtn[data-id="build"]').click();
 await page.locator('.build-item', { hasText: 'Taxiway' }).click();
-p = await toScreen(43.5, 29.5); await page.touchscreen.tap(p.sx, p.sy);
-p = await toScreen(43.5, 33.5); await page.touchscreen.tap(p.sx, p.sy);
+p = await toScreen(51.5, 45.5); await page.touchscreen.tap(p.sx, p.sy);
+p = await toScreen(51.5, 49.5); await page.touchscreen.tap(p.sx, p.sy);
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${out}/21-line.png` });
 await page.locator('.placebar .iconbtn.active').click();
@@ -48,7 +48,7 @@ check('taxiway tracé (5 cases)', (await count()) === n1 + 5);
 await page.locator('.placebar .iconbtn', { hasText: '✕' }).click();
 
 // 3. Sélection d'un bâtiment + amélioration
-p = await toScreen(39, 34);
+p = await toScreen(47, 50);
 await page.touchscreen.tap(p.sx, p.sy);
 await page.waitForTimeout(300);
 const selTitle = await page.locator('.panel-head h2').textContent();
@@ -60,8 +60,8 @@ await page.screenshot({ path: `${out}/22-selection.png` });
 
 // 4. Déplacement par glisser du fantôme
 await page.locator('.panel .btn', { hasText: 'Déplacer' }).click();
-const from = await toScreen(39, 34);
-const to = await toScreen(39, 37);
+const from = await toScreen(47, 50);
+const to = await toScreen(47, 53);
 const cdp = await ctx.newCDPSession(page);
 const touch = async (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((q) => ({ x: q.sx, y: q.sy })) });
 await touch('touchStart', [from]);
@@ -69,7 +69,7 @@ for (let i = 1; i <= 6; i++) await touch('touchMove', [{ sx: from.sx, sy: from.s
 await touch('touchEnd', []);
 await page.waitForTimeout(200);
 const mv = await page.evaluate(() => window.game.mode);
-check('fantôme déplacé par glisser (y=' + mv.y + ')', mv.kind === 'move' && mv.y === 36);
+check('fantôme déplacé par glisser (y=' + mv.y + ')', mv.kind === 'move' && mv.y === 52);
 await page.locator('.placebar .iconbtn', { hasText: '✕' }).click();
 
 // 5. Pincement pour zoomer

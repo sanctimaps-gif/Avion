@@ -13,6 +13,9 @@ import type { Building, GameState, Pt } from './types';
 export const TERRAIN_GRASS = 0;
 export const TERRAIN_WATER = 1;
 export const TERRAIN_FOREST = 2;
+export const TERRAIN_FIELD = 3;
+export const TERRAIN_SAND = 4;
+export const TERRAIN_TOWN = 5;
 export const FOREST_CLEAR_COST = 3_000;
 
 export interface PlaceCheck {
@@ -55,6 +58,7 @@ export function canPlace(s: GameState, type: string, x: number, y: number, rot: 
       const i = yy * s.map.w + xx;
       const t = s.map.terrain[i];
       if (t === TERRAIN_WATER) return { ok: false, reason: 'pb.water', cost };
+      if (t === TERRAIN_TOWN) return { ok: false, reason: 'pb.town', cost };
       const o = world.occ[i];
       if (o && o !== ignoreId) return { ok: false, reason: 'pb.occupied', cost };
       if (t === TERRAIN_FOREST) cost += FOREST_CLEAR_COST;
@@ -93,7 +97,7 @@ export function place(s: GameState, type: string, x: number, y: number, rot: 0 |
   // Défrichage de la forêt.
   for (let yy = y; yy < y + f.h; yy++) for (let xx = x; xx < x + f.w; xx++) {
     const i = yy * s.map.w + xx;
-    if (s.map.terrain[i] === TERRAIN_FOREST) s.map.terrain[i] = TERRAIN_GRASS;
+    if (s.map.terrain[i] === TERRAIN_FOREST || s.map.terrain[i] === TERRAIN_FIELD) s.map.terrain[i] = TERRAIN_GRASS;
   }
   const b = newBuilding(s, type, x, y, rot);
   b.totalInvested = chk.cost;

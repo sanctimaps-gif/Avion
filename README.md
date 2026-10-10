@@ -44,6 +44,11 @@ Voir [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## État des fonctionnalités
 
 Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
+- Carte 96×72 aux limites naturelles : mer et plage à l'est, rivière, forêts, champs, village voisin
+  (eau et village non constructibles), clôture du périmètre, caméra bornée à la carte.
+- Modèles 3D importés (`src/assets/models/*.glb`, intégrés au fichier unique) : terminal, tour, hangar,
+  caserne, parking, hôtel, turbopropulseur (hélices animées), moyen-courrier, gros-porteur (couleurs
+  de la compagnie). Les autres bâtiments utilisent des modèles procéduraux.
 - Simulation unique minute par minute, déterministe (même sauvegarde ⇒ mêmes événements).
 - 4 vues sur la même simulation : 2D, 3D réaliste (ombres, cycle jour/nuit, brouillard, pluie/neige,
   fenêtres éclairées la nuit), isométrique (rotation par quarts de tour), hybride (8 couches : trafic,

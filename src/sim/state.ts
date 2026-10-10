@@ -2,7 +2,8 @@ import { SCENARIO_MAP, DAILY_TEMPLATES } from '../data/scenarios';
 import { AIRLINE_LIST } from '../data/airlines';
 import { Rng, hashString } from '../core/rng';
 import { acceptOffer, airlineState, generateOffer } from './airlines';
-import { newBuilding, TERRAIN_FOREST, TERRAIN_GRASS, TERRAIN_WATER } from './construction';
+import { newBuilding, TERRAIN_FIELD, TERRAIN_FOREST, TERRAIN_GRASS, TERRAIN_SAND, TERRAIN_TOWN, TERRAIN_WATER } from './construction';
+import { BUILDINGS, footprint } from '../data/buildings';
 import { createDayFlights } from './flights';
 import { emptyPaxToday } from './passengers';
 import { objectivesFor } from './progression';
@@ -14,8 +15,11 @@ import { STAFF_CATS, type CommerceKind, type GameMode, type GameSettings, type G
 /** Version du format de sauvegarde (voir save/migrations.ts). */
 export const SAVE_VERSION = 1;
 
-export const MAP_W = 72;
-export const MAP_H = 56;
+export const MAP_W = 96;
+export const MAP_H = 72;
+/** Décalage de l'aménagement initial (zone de départ : parcelles 4..7 × 5..8). */
+const OX = 8;
+const OY = 16;
 export const PARCEL = 8;
 
 export interface NewGameOptions {
@@ -35,32 +39,97 @@ export interface NewGameOptions {
 const START_CASH = { easy: 4_000_000, normal: 2_500_000, hard: 1_200_000 };
 const COMMERCE: CommerceKind[] = ['cafe', 'restaurant', 'shop', 'dutyfree', 'lounge', 'hotel', 'parking', 'ads', 'transport', 'rental'];
 
+/** Bruit de valeur lissé (0..1), déterministe. */
+function valueNoise(seed: number): (x: number, y: number) => number {
+  const h = (ix: number, iy: number) => {
+    let n = (ix * 374761393 + iy * 668265263 + seed * 2246822519) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  };
+  const sm = (t: number) => t * t * (3 - 2 * t);
+  return (x, y) => {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = sm(x - ix);
+    const fy = sm(y - iy);
+    const a = h(ix, iy) + (h(ix + 1, iy) - h(ix, iy)) * fx;
+    const b = h(ix, iy + 1) + (h(ix + 1, iy + 1) - h(ix, iy + 1)) * fx;
+    return a + (b - a) * fy;
+  };
+}
+
+/**
+ * Carte naturelle aux limites lisibles : mer et plage à l'est, rivière au nord,
+ * forêts à l'ouest, village au sud-ouest (non constructibles : eau, village),
+ * champs cultivés autour de la zone de départ.
+ */
 function genTerrain(r: Rng, ownedFn: (x: number, y: number) => boolean): number[] {
-  const t = new Array(MAP_W * MAP_H).fill(TERRAIN_GRASS);
-  // Lac hors de la zone initiale.
-  const lakes = r.int(1, 2);
-  for (let k = 0; k < lakes; k++) {
-    const cx = r.chance(0.5) ? r.int(4, 16) : r.int(58, 68);
-    const cy = r.int(6, 40);
-    const rx = r.range(3, 6);
-    const ry = r.range(2.5, 5);
-    for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
-      const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
-      if (d < 1 + Math.sin(x * 0.9 + y * 0.7) * 0.15 && !ownedFn(x, y)) t[y * MAP_W + x] = TERRAIN_WATER;
-    }
+  const W = MAP_W;
+  const H = MAP_H;
+  const t = new Array(W * H).fill(TERRAIN_GRASS);
+  const seed = r.int(1, 1e9);
+  const n1 = valueNoise(seed);
+  const n2 = valueNoise(seed + 7);
+  const ph1 = r.range(0, 6);
+  const ph2 = r.range(0, 6);
+  const set = (x: number, y: number, v: number) => {
+    if (x >= 0 && y >= 0 && x < W && y < H) t[y * W + x] = v;
+  };
+  // Littoral (est)
+  const shore = (y: number) => W - 13 + 3 * Math.sin(y * 0.11 + ph1) + 1.5 * Math.sin(y * 0.31 + ph2);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const sx = shore(y);
+    if (x >= sx) set(x, y, TERRAIN_WATER);
+    else if (x >= sx - 2.2) set(x, y, TERRAIN_SAND);
   }
-  // Bosquets.
-  for (let k = 0; k < 26; k++) {
-    const cx = r.int(0, MAP_W - 1);
-    const cy = r.int(0, MAP_H - 6);
-    const rad = r.range(1.5, 4);
-    for (let y = Math.floor(cy - rad); y <= cy + rad; y++) for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
-      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) continue;
-      if (Math.hypot(x - cx, y - cy) > rad + r.range(-0.6, 0.6)) continue;
-      // La zone de départ reste dégagée (sauf la bordure est).
-      if (ownedFn(x, y) && x < 50) continue;
-      if (t[y * MAP_W + x] === TERRAIN_GRASS) t[y * MAP_W + x] = TERRAIN_FOREST;
+  // Rivière : de la lisière nord jusqu'à la mer
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= 40; i++) {
+    const k = i / 40;
+    const x = 18 + k * (shore(26) - 18 + 2);
+    const y = 2 + k * 24 + 5 * Math.sin(k * Math.PI * 2.2 + ph1);
+    pts.push([x, y]);
+  }
+  for (let y = 0; y < 40; y++) for (let x = 0; x < W; x++) {
+    let d = 99;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, ay] = pts[i - 1];
+      const [bx, by] = pts[i];
+      const vx = bx - ax;
+      const vy = by - ay;
+      const tt = Math.max(0, Math.min(1, ((x + 0.5 - ax) * vx + (y + 0.5 - ay) * vy) / (vx * vx + vy * vy)));
+      d = Math.min(d, Math.hypot(x + 0.5 - ax - vx * tt, y + 0.5 - ay - vy * tt));
     }
+    if (d < 1.4) set(x, y, TERRAIN_WATER);
+    else if (d < 2.1 && t[y * W + x] === TERRAIN_GRASS) set(x, y, TERRAIN_SAND);
+  }
+  // Rivière amont : de la lisière nord jusqu'au départ du méandre
+  for (let y = 0; y < 3; y++) for (let x = 17; x < 20; x++) set(x, y, TERRAIN_WATER);
+  // Petit étang à l'ouest
+  const lx = r.int(5, 10);
+  const ly = r.int(30, 40);
+  for (let y = ly - 4; y <= ly + 4; y++) for (let x = lx - 5; x <= lx + 5; x++) {
+    const d = ((x - lx) / 4.2) ** 2 + ((y - ly) / 3.2) ** 2 + (n1(x * 0.5, y * 0.5) - 0.5) * 0.6;
+    if (d < 1) set(x, y, TERRAIN_WATER);
+  }
+  // Village (sud-ouest)
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const cx = (x - 6) / 12;
+    const cy = (y - (H - 7)) / 9;
+    if (cx * cx + cy * cy + (n2(x * 0.3, y * 0.3) - 0.5) * 0.5 < 1 && !ownedFn(x, y) && t[y * W + x] === TERRAIN_GRASS) set(x, y, TERRAIN_TOWN);
+  }
+  // Forêts et champs
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (t[i] !== TERRAIN_GRASS) continue;
+    const owned = ownedFn(x, y);
+    const westBias = Math.max(0, 1 - x / 26) * 0.35;
+    const f = n1(x * 0.16, y * 0.16) + westBias;
+    if (f > 0.66 && (!owned || x >= W - 40)) {
+      t[i] = TERRAIN_FOREST;
+      continue;
+    }
+    if (!owned && n2(x * 0.09, y * 0.09) > 0.48 && f < 0.6) t[i] = TERRAIN_FIELD;
   }
   return t;
 }
@@ -101,15 +170,22 @@ const MEDIUM_EXTRA: Placement[] = [
 ];
 
 function applyLayout(s: GameState, layout: Placement[]): void {
-  for (const [type, x, y, rot] of layout) s.buildings.push(newBuilding(s, type, x, y, rot, true));
+  const add = (type: string, x: number, y: number, rot: 0 | 1 = 0) => {
+    const b = newBuilding(s, type, x + OX, y + OY, rot, true);
+    s.buildings.push(b);
+    // Le terrain sous l'aménagement initial est dégagé.
+    const f = footprint(BUILDINGS[type], rot);
+    for (let yy = b.y; yy < b.y + f.h; yy++) for (let xx = b.x; xx < b.x + f.w; xx++) s.map.terrain[yy * s.map.w + xx] = TERRAIN_GRASS;
+  };
+  for (const [type, x, y, rot] of layout) add(type, x, y, rot);
   // Taxiway parallèle à la piste et route d'accès depuis le bord sud.
-  for (let x = 29; x <= 42; x++) s.buildings.push(newBuilding(s, 'taxiway', x, 28, 0, true));
-  for (let y = 38; y < MAP_H; y++) s.buildings.push(newBuilding(s, 'road', 40, y, 0, true));
-  for (let x = 30; x < 40; x++) s.buildings.push(newBuilding(s, 'road', x, 38, 0, true));
+  for (let x = 29; x <= 42; x++) add('taxiway', x, 28);
+  for (let y = 38; y < MAP_H - OY; y++) add('road', 40, y);
+  for (let x = 30; x < 40; x++) add('road', x, 38);
   if (layout.some((p) => p[1] === 24)) {
-    for (let x = 24; x < 30; x++) s.buildings.push(newBuilding(s, 'road', x, 38, 0, true));
-    s.buildings.push(newBuilding(s, 'taxiway', 43, 28, 0, true));
-    s.buildings.push(newBuilding(s, 'taxiway', 44, 28, 0, true));
+    for (let x = 24; x < 30; x++) add('road', x, 38);
+    add('taxiway', 43, 28);
+    add('taxiway', 44, 28);
   }
   for (const b of s.buildings) {
     // Les parcelles occupées par l'aménagement initial sont acquises.
@@ -129,7 +205,7 @@ export function createGame(opts: NewGameOptions): GameState {
   const pw = Math.ceil(MAP_W / PARCEL);
   const ph = Math.ceil(MAP_H / PARCEL);
   const owned = new Array(pw * ph).fill(false);
-  for (let py = 3; py < ph; py++) for (let px = 3; px <= 6; px++) owned[py * pw + px] = true;
+  for (let py = 5; py < ph; py++) for (let px = 4; px <= 7; px++) owned[py * pw + px] = true;
   const ownedFn = (x: number, y: number) => owned[Math.floor(y / PARCEL) * pw + Math.floor(x / PARCEL)];
   const terrain = genTerrain(r, ownedFn);
   const startDay = scenario?.startDay ?? 90;

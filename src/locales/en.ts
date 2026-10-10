@@ -33,7 +33,7 @@ export const en: Record<string, string> = {
   'land.confirm': 'Buy this plot for {price}?', 'land.bought': 'Plot purchased',
   'lock.tierName': 'Unlocked at tier "{tier}"', 'lock.techName': 'Requires technology "{tech}"', 'lock.tier': 'Tier too low',
   'lock.tech': 'Technology required', 'lock.prereq': 'Missing prerequisites',
-  'pb.unknown': 'Not possible', 'pb.bounds': 'Outside the map', 'pb.notOwned': 'Land not owned', 'pb.water': 'Cannot build on water',
+  'pb.unknown': 'Not possible', 'pb.bounds': 'Outside the map', 'pb.notOwned': 'Land not owned', 'pb.water': 'Cannot build on water', 'pb.town': 'Not possible: neighbouring village land',
   'pb.occupied': 'Location occupied', 'pb.money': 'Insufficient funds', 'pb.exists': 'Already built', 'pb.inUse': 'Currently in use',
   'pb.noTerminal': 'Not connected to a terminal', 'pb.noTerminal.fix': 'Place this module against a terminal (or an already connected module).',
   'pb.noRoad': 'No road access', 'pb.noRoad.fix': 'Connect the building (or its terminal) to a road linked to the south edge of the map.',

@@ -36,7 +36,7 @@ export const fr: Record<string, string> = {
   'land.confirm': 'Acheter cette parcelle pour {price} ?', 'land.bought': 'Parcelle achetée',
   'lock.tierName': 'Débloqué au palier « {tier} »', 'lock.techName': 'Nécessite la technologie « {tech} »', 'lock.tier': 'Palier insuffisant',
   'lock.tech': 'Technologie requise', 'lock.prereq': 'Prérequis manquants',
-  'pb.unknown': 'Action impossible', 'pb.bounds': 'Hors de la carte', 'pb.notOwned': 'Terrain non acquis', 'pb.water': 'Impossible sur l\'eau',
+  'pb.unknown': 'Action impossible', 'pb.bounds': 'Hors de la carte', 'pb.notOwned': 'Terrain non acquis', 'pb.water': 'Impossible sur l\'eau', 'pb.town': 'Impossible : terrain du village voisin',
   'pb.occupied': 'Emplacement occupé', 'pb.money': 'Fonds insuffisants', 'pb.exists': 'Déjà construit', 'pb.inUse': 'En cours d\'utilisation',
   'pb.noTerminal': 'Non relié à un terminal', 'pb.noTerminal.fix': 'Placez ce module contre un terminal (ou un module déjà relié).',
   'pb.noRoad': 'Non desservi par la route', 'pb.noRoad.fix': 'Reliez le bâtiment (ou son terminal) à une route connectée au bord sud de la carte.',

@@ -6,6 +6,8 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile()],
+  // Modèles 3D intégrés au fichier unique (jeu hors ligne).
+  assetsInclude: ['**/*.glb'],
   build: {
     target: 'es2020',
     assetsInlineLimit: 100000000,

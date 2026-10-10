@@ -19,6 +19,8 @@ import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from '
 const TEX_PX = 24;
 
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
+import { importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
+import { Environment } from './env3d';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
 export function webglInfo(): { webgl2: boolean; renderer: string } {
@@ -40,7 +42,8 @@ export class View3D implements GameView {
   canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(45, 1, 0.5, 600);
+  private camera = new THREE.PerspectiveCamera(45, 1, 0.5, 1100);
+  private env = new Environment();
   private sun = new THREE.DirectionalLight(0xffffff, 2.2);
   private hemi = new THREE.HemisphereLight(0xbfdcff, 0x3a5a2a, 1.1);
   private ground: THREE.Mesh;
@@ -90,6 +93,8 @@ export class View3D implements GameView {
     });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
     this.scene.add(this.hemi);
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
@@ -112,11 +117,7 @@ export class View3D implements GameView {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), mat('#3f6e3a'));
-    outer.rotation.x = -Math.PI / 2;
-    outer.position.set(36, -0.05, 28);
-    outer.receiveShadow = true;
-    this.scene.add(outer);
+    this.scene.add(this.env.group);
 
     this.vehicles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.25, 0.22), new THREE.MeshStandardMaterial({ color: '#ffffff' }), 400);
     this.vehicles.count = 0;
@@ -132,6 +133,13 @@ export class View3D implements GameView {
     this.precip = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: '#dbeafe', size: 0.12, transparent: true, opacity: 0.8 }));
     this.scene.add(this.precip);
     this.scene.fog = new THREE.Fog('#9cc7e8', 80, 400);
+    // Les modèles importés arrivent de façon asynchrone : on reconstruit ensuite.
+    void loadModels().then(() => {
+      for (const v of this.buildings.values()) this.scene.remove(v.obj);
+      this.buildings.clear();
+      for (const g of this.planes.values()) this.scene.remove(g);
+      this.planes.clear();
+    });
   }
 
   resize(w: number, h: number, dpr: number): void {
@@ -207,7 +215,8 @@ export class View3D implements GameView {
       g.add(scaf);
       return g;
     }
-    const model = buildingModel(b.type, f.w, f.h, b.level, b.id);
+    // Modèle importé (.glb) s'il existe, sinon modèle procédural.
+    const model = importedBuilding(b.type, f.w, f.h) ?? buildingModel(b.type, f.w, f.h, b.level, b.id);
     g.add(model);
     if (b.brokenFor > 0) {
       const warn = new THREE.Mesh(geo('warncone', () => new THREE.ConeGeometry(0.3, 0.8, 6)), mat('#ef4444', { emissive: new THREE.Color('#ef4444'), emissiveIntensity: 0.8 }, 'warn'));
@@ -224,6 +233,8 @@ export class View3D implements GameView {
     if (b.buildRemaining > 0) return null;
     const d = BUILDINGS[b.type];
     if (d.standSize) {
+      // Le terminal importé possède déjà ses passerelles.
+      if (modelsLoaded()) return null;
       const w = getWorld(s);
       const st = w.stands.find((x) => x.id === b.id);
       if (!st?.contact) return null;
@@ -283,6 +294,12 @@ export class View3D implements GameView {
   private makePlane(f: Flight): THREE.Group {
     const a = AIRCRAFT[f.aircraft];
     const al = AIRLINES[f.airlineId];
+    const imp = importedAircraft(f.aircraft, a.length, al.color);
+    if (imp) {
+      imp.obj.userData.props = imp.props;
+      imp.obj.userData.imported = true;
+      return imp.obj;
+    }
     const g = new THREE.Group();
     const L = a.length;
     const R = L * 0.065;
@@ -343,8 +360,10 @@ export class View3D implements GameView {
         this.scene.add(g);
       }
       const p = flightPose(f, fi.prev, fi.frac);
-      g.position.set(p.x, 0.32 + p.alt * 9, p.y);
-      g.rotation.set(0, -p.hdg, p.alt > 0.02 && f.phase === 'holding' ? 0.35 : 0);
+      g.position.set(p.x, (g.userData.imported ? 0.02 : 0.32) + p.alt * 9, p.y);
+      g.rotation.order = 'YXZ';
+      g.rotation.set(p.alt > 0.02 && f.phase === 'holding' ? -0.35 : 0, -p.hdg, 0);
+      for (const pr of (g.userData.props ?? []) as THREE.Object3D[]) pr.rotation.z += 0.9;
       if (f.phase === 'takeoff' || f.phase === 'departed') g.rotation.z = Math.min(0.25, p.alt * 0.6);
       if (f.phase === 'inbound') g.rotation.z = -0.05;
       for (const v of serviceVehicles(f, fi.realTime)) {
@@ -509,7 +528,7 @@ export class View3D implements GameView {
         this.groundCanvas.height = s.map.h * TEX_PX;
       }
       const ctx = this.groundCanvas.getContext('2d')!;
-      drawGround(ctx, s, (x, y) => [x * TEX_PX, y * TEX_PX], TEX_PX);
+      drawGround(ctx, s, (x, y) => [x * TEX_PX, y * TEX_PX], TEX_PX, '3d');
       this.groundTex.needsUpdate = true;
       this.ground.scale.set(s.map.w, s.map.h, 1);
       this.ground.position.set(s.map.w / 2, 0, s.map.h / 2);
@@ -530,9 +549,9 @@ export class View3D implements GameView {
     this.sun.position.set(cx + Math.cos(ang) * 80, Math.max(8, Math.sin(ang) * 90), cy + 30);
     this.sun.target.position.set(cx, 0, cy);
     const dawn = clamp(1 - Math.abs(Math.sin(ang)) * 2.5, 0, 1);
-    this.sun.color.set(dawn > 0.2 && dl > 0.2 ? '#ffc38a' : '#fff7e8');
-    this.sun.intensity = (overcast ? 0.9 : 2.6) * dl + 0.08;
-    this.hemi.intensity = 0.35 + 0.9 * dl;
+    this.sun.color.set(dl < 0.25 ? '#9fb4ff' : dawn > 0.2 && dl > 0.2 ? '#ffc38a' : '#fff7e8');
+    this.sun.intensity = (overcast ? 0.9 : 2.6) * dl + 0.45 * (1 - dl);
+    this.hemi.intensity = 0.7 + 0.7 * dl;
     this.hemi.color.set(dl > 0.3 ? '#cfe5ff' : '#4a5a88');
     const night = 1 - dl;
     this.windowMat.emissiveIntensity = night * 1.4;
@@ -550,6 +569,8 @@ export class View3D implements GameView {
     fog.near = 20 + 60 * vis;
     fog.far = 60 + 340 * vis;
     this.syncPrecip(s, cam, fi.quality, fi.realTime);
+    this.env.sync(s, w.rev, fi.quality);
+    this.env.update(s, fi.realTime, dl, overcast, new THREE.Vector3(cam.cx, 0, cam.cy));
 
     this.placeCamera(cam);
     this.renderer.render(this.scene, this.camera);

@@ -6,7 +6,7 @@ import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, GameState, Pt } from '../sim/types';
 import { daylight, drawPlane, flightPose, GLYPH, mix, minuteOfDay, serviceVehicles, type Project } from './common';
-import { drawGround, FLAT, GroundCache } from './ground';
+import { drawGround, FLAT, GroundCache, tileHash } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from './view';
 import { drawWeather2D } from './weatherfx';
@@ -141,7 +141,7 @@ export class ViewIso implements GameView {
       drawGround(c, s, (x, y) => {
         const [rx, ry] = this.rotT(q, x, y);
         return [(rx - ry) * K0 + Hr * K0, ((rx + ry) * K0) / 2];
-      }, K0),
+      }, K0, 'iso'),
     );
     void Wr;
     const origin = pr(...this.unrotT(q, 0, 0));
@@ -189,6 +189,26 @@ export class ViewIso implements GameView {
         },
       });
     }
+    // Décor en volume : arbres des forêts et maisons du village (hors écran ignorés)
+    const T = s.map.terrain;
+    const margin = k * 3;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const tt = T[y * W + x];
+      if (tt !== 2 && tt !== 5) continue;
+      if (tt === 5 && (x % 4 === 0 || y % 4 === 0)) continue;
+      const c = pr(x + 0.5, y + 0.5, 0);
+      if (c[0] < -margin || c[0] > this.w + margin || c[1] < -margin || c[1] > this.h + margin * 2) continue;
+      const [rx, ry] = this.rotT(q, x + 0.5, y + 0.5);
+      if (tt === 2) {
+        const n = 1 + Math.floor(tileHash(x, y) * 2);
+        for (let i = 0; i < n; i++) {
+          const ox = 0.25 + tileHash(x, y, 10 + i) * 0.5;
+          const oy = 0.25 + tileHash(x, y, 20 + i) * 0.5;
+          const [tx, ty] = this.rotT(q, x + ox, y + oy);
+          items.push({ depth: tx + ty, draw: () => this.tree(pr, x + ox, y + oy, k, dl, tileHash(x, y, 30 + i)) });
+        }
+      } else items.push({ depth: rx + ry, draw: () => this.house(pr, x, y, k, dl) });
+    }
     items.sort((a, b) => a.depth - b.depth);
     for (const it of items) it.draw();
 
@@ -215,6 +235,93 @@ export class ViewIso implements GameView {
         this.fillQuad(P, g.x, g.y, f.w, f.h, g.ok ? 'rgba(34,197,94,0.5)' : 'rgba(239,68,68,0.5)');
         this.outline(P, g.x, g.y, f.w, f.h, g.ok ? '#22c55e' : '#ef4444', 2);
       }
+    }
+  }
+
+  private tree(pr: (x: number, y: number, z?: number) => [number, number], x: number, y: number, k: number, dl: number, h: number): void {
+    const ctx = this.ctx;
+    const base = pr(x, y, 0);
+    const size = 0.75 + h * 0.5;
+    const top = pr(x, y, 1.3 * size);
+    const r = k * 0.42 * size;
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(base[0] + r * 0.4, base[1], r, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = mix('#000000', '#6b4a2b', 0.5 + 0.5 * dl);
+    ctx.fillRect(base[0] - 1, top[1] + (base[1] - top[1]) * 0.6, 2, (base[1] - top[1]) * 0.4);
+    if (h < 0.5) {
+      // Conifère
+      ctx.fillStyle = mix('#000000', h < 0.25 ? '#2e6b3a' : '#347743', 0.5 + 0.5 * dl);
+      ctx.beginPath();
+      ctx.moveTo(top[0], top[1]);
+      ctx.lineTo(base[0] - r, base[1] - (base[1] - top[1]) * 0.25);
+      ctx.lineTo(base[0] + r, base[1] - (base[1] - top[1]) * 0.25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.beginPath();
+      ctx.moveTo(top[0], top[1]);
+      ctx.lineTo(base[0] - r, base[1] - (base[1] - top[1]) * 0.25);
+      ctx.lineTo(top[0], base[1] - (base[1] - top[1]) * 0.25);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Feuillu
+      const cy = top[1] + (base[1] - top[1]) * 0.35;
+      ctx.fillStyle = mix('#000000', h < 0.75 ? '#3f8a45' : '#4a9a4c', 0.5 + 0.5 * dl);
+      ctx.beginPath();
+      ctx.arc(top[0], cy, r * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.beginPath();
+      ctx.arc(top[0] - r * 0.35, cy - r * 0.35, r * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private house(pr: (x: number, y: number, z?: number) => [number, number], x: number, y: number, k: number, dl: number): void {
+    const ctx = this.ctx;
+    const x0 = x + 0.15;
+    const y0 = y + 0.15;
+    const x1 = x + 0.85;
+    const y1 = y + 0.85;
+    const hgt = 0.45 + tileHash(x, y, 4) * 0.25;
+    const corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as const;
+    const faces = corners.map((a, i) => {
+      const b = corners[(i + 1) % 4];
+      const pts = [pr(a[0], a[1], 0), pr(b[0], b[1], 0), pr(b[0], b[1], hgt), pr(a[0], a[1], hgt)];
+      return { pts, shade: i % 2 ? 0.7 : 0.85 };
+    }).sort((a, b) => (a.pts[0][1] + a.pts[1][1]) - (b.pts[0][1] + b.pts[1][1]));
+    for (const f of faces) {
+      ctx.fillStyle = mix('#000000', '#efe6d8', f.shade * (0.55 + 0.45 * dl));
+      ctx.beginPath();
+      ctx.moveTo(f.pts[0][0], f.pts[0][1]);
+      for (const p of f.pts.slice(1)) ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Toit à deux pans
+    const roof = ['#b5523b', '#c46a3c', '#8f4a3a', '#d08a4e', '#6d7480', '#a4553f'][Math.floor(tileHash(x, y, 2) * 6)];
+    const ridgeA = pr(x0, (y0 + y1) / 2, hgt + 0.35);
+    const ridgeB = pr(x1, (y0 + y1) / 2, hgt + 0.35);
+    const pans = ([[y0, 0.75], [y1, 1]] as const).slice().sort((p1, p2) => pr(x0, p1[0], hgt)[1] - pr(x0, p2[0], hgt)[1]);
+    for (const [ya, shade] of pans) {
+      ctx.fillStyle = mix('#000000', roof, shade * (0.55 + 0.45 * dl));
+      const a = pr(x0, ya, hgt);
+      const b = pr(x1, ya, hgt);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.lineTo(ridgeB[0], ridgeB[1]);
+      ctx.lineTo(ridgeA[0], ridgeA[1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (dl < 0.5) {
+      const c = pr((x0 + x1) / 2, y1, hgt * 0.5);
+      ctx.fillStyle = 'rgba(255,214,140,0.9)';
+      ctx.fillRect(c[0] - k * 0.08, c[1] - k * 0.08, k * 0.16, k * 0.12);
     }
   }
 

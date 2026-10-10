@@ -2,7 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { ownedAt } from '../sim/construction';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, GameState } from '../sim/types';
-import { TERRAIN_COLORS, type Project } from './common';
+import type { Project } from './common';
 
 /**
  * Dessin de la couche "sol" (terrain + infrastructures plates : pistes,
@@ -35,46 +35,159 @@ function line(ctx: CanvasRenderingContext2D, P: Project, x0: number, y0: number,
   ctx.stroke();
 }
 
-export function drawGround(ctx: CanvasRenderingContext2D, s: GameState, P: Project, scale: number): void {
+/** Hachage déterministe d'une case (0..1). */
+export function tileHash(x: number, y: number, k = 0): number {
+  let n = (x * 374761393 + y * 668265263 + k * 1442695041) | 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+
+const GRASS = ['#5d9c46', '#66a84d', '#6fae52', '#78b358'];
+const CROPS = ['#c9b458', '#9fbf4f', '#b9a26a', '#86b24c', '#d8c47c', '#a8c060'];
+const ROOFS = ['#b5523b', '#c46a3c', '#8f4a3a', '#d08a4e', '#6d7480', '#a4553f'];
+
+export type GroundStyle = 'top' | 'iso' | '3d';
+
+/**
+ * Dessine le terrain. `style` adapte les détails : en 3D et en isométrique,
+ * les arbres et les maisons sont des objets en volume, donc seul leur sol est peint.
+ */
+export function drawGround(ctx: CanvasRenderingContext2D, s: GameState, P: Project, scale: number, style: GroundStyle = 'top'): void {
   const W = s.map.w;
   const H = s.map.h;
   const w = getWorld(s);
-  // Terrain
+  const T = s.map.terrain;
+  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= W || y >= H ? -1 : T[y * W + x]);
+  // Profondeur de l'eau (distance à la rive, plafonnée)
+  const depth = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (T[y * W + x] !== 1) continue;
+    let d = 5;
+    for (let r = 1; r <= 4 && d === 5; r++) {
+      for (let dy = -r; dy <= r && d === 5; dy++) for (let dx = -r; dx <= r; dx++) {
+        const v = at(x + dx, y + dy);
+        if (v !== 1 && v !== -1) { d = r; break; }
+      }
+    }
+    depth[y * W + x] = d;
+  }
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      const t = s.map.terrain[y * W + x];
-      const owned = ownedAt(s, x, y);
-      let col = TERRAIN_COLORS[t] ?? TERRAIN_COLORS[0];
-      if (t === 0 && (x * 7 + y * 13) % 5 === 0) col = '#62a352';
+      const t = T[y * W + x];
+      const h1 = tileHash(x, y);
+      let col: string;
+      switch (t) {
+        case 1: {
+          const d = depth[y * W + x];
+          col = ['#5bb0dc', '#4aa0d2', '#3e90c6', '#3381ba', '#2b72ab', '#256599'][Math.min(5, d)];
+          break;
+        }
+        case 2: col = h1 < 0.5 ? '#3b733a' : '#407a3e'; break;
+        case 3: {
+          const fx = Math.floor(x / 5);
+          const fy = Math.floor(y / 4);
+          col = CROPS[Math.floor(tileHash(fx, fy, 3) * CROPS.length)];
+          break;
+        }
+        case 4: col = h1 < 0.5 ? '#e3d4a3' : '#ddcd98'; break;
+        case 5: col = (x % 4 === 0 || y % 4 === 0) ? '#7c8088' : '#b9b3a8'; break;
+        default: col = GRASS[Math.floor(h1 * GRASS.length)];
+      }
       ctx.fillStyle = col;
       quad(ctx, P, x, y, x + 1.02, y + 1.02);
       ctx.fill();
-      if (!owned) {
-        ctx.fillStyle = 'rgba(20,30,45,0.32)';
-        quad(ctx, P, x, y, x + 1.02, y + 1.02);
-        ctx.fill();
-      }
-      if (t === 2) {
-        ctx.fillStyle = '#245a2e';
-        const c = P(x + 0.5, y + 0.5);
+      // Détails par type de terrain
+      if (t === 3) {
+        // Sillons de culture, orientés par parcelle agricole
+        const vertical = tileHash(Math.floor(x / 5), Math.floor(y / 4), 9) < 0.5;
+        ctx.strokeStyle = 'rgba(70,60,20,0.22)';
+        ctx.lineWidth = Math.max(0.5, scale * 0.05);
+        for (let k = 0.25; k < 1; k += 0.25) {
+          if (vertical) line(ctx, P, x + k, y, x + k, y + 1);
+          else line(ctx, P, x, y + k, x + 1, y + k);
+        }
+        if (x % 5 === 0) { ctx.strokeStyle = 'rgba(60,90,40,0.5)'; line(ctx, P, x, y, x, y + 1); }
+        if (y % 4 === 0) { ctx.strokeStyle = 'rgba(60,90,40,0.5)'; line(ctx, P, x, y, x + 1, y); }
+      } else if (t === 1) {
+        // Écume le long des rives et reflets
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = Math.max(1, scale * 0.08);
+        if (at(x, y - 1) !== 1 && at(x, y - 1) !== -1) line(ctx, P, x, y + 0.05, x + 1, y + 0.05);
+        if (at(x, y + 1) !== 1 && at(x, y + 1) !== -1) line(ctx, P, x, y + 0.95, x + 1, y + 0.95);
+        if (at(x - 1, y) !== 1 && at(x - 1, y) !== -1) line(ctx, P, x + 0.05, y, x + 0.05, y + 1);
+        if (at(x + 1, y) !== 1 && at(x + 1, y) !== -1) line(ctx, P, x + 0.95, y, x + 0.95, y + 1);
+        if (h1 < 0.25) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+          ctx.lineWidth = Math.max(0.5, scale * 0.04);
+          line(ctx, P, x + 0.2, y + 0.5, x + 0.6, y + 0.45);
+        }
+      } else if (t === 0 && h1 > 0.93) {
+        // Touffes de fleurs / buissons
+        const c = P(x + 0.3 + h1 * 0.4, y + 0.5);
+        ctx.fillStyle = tileHash(x, y, 5) < 0.5 ? '#4f8a3c' : '#e8d15a';
         ctx.beginPath();
-        ctx.arc(c[0], c[1], scale * 0.32, 0, Math.PI * 2);
+        ctx.arc(c[0], c[1], scale * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (t === 5 && style === 'top' && !(x % 4 === 0 || y % 4 === 0)) {
+        // Toits des maisons du village
+        const rc = ROOFS[Math.floor(tileHash(x, y, 2) * ROOFS.length)];
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        quad(ctx, P, x + 0.2, y + 0.22, x + 0.9, y + 0.92);
+        ctx.fill();
+        ctx.fillStyle = rc;
+        quad(ctx, P, x + 0.12, y + 0.12, x + 0.82, y + 0.82);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = Math.max(0.5, scale * 0.04);
+        line(ctx, P, x + 0.12, y + 0.47, x + 0.82, y + 0.47);
+      }
+      if (t === 2 && style === 'top') {
+        // Canopées des arbres avec ombre portée
+        const n = 2 + Math.floor(h1 * 2);
+        for (let k = 0; k < n; k++) {
+          const ox = 0.25 + tileHash(x, y, 10 + k) * 0.5;
+          const oy = 0.25 + tileHash(x, y, 20 + k) * 0.5;
+          const r = scale * (0.28 + tileHash(x, y, 30 + k) * 0.14);
+          const c = P(x + ox, y + oy);
+          ctx.fillStyle = 'rgba(0,0,0,0.22)';
+          ctx.beginPath();
+          ctx.arc(c[0] + r * 0.35, c[1] + r * 0.35, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = ['#2c6334', '#357540', '#2f6b38', '#3f8448'][(k + Math.floor(h1 * 4)) % 4];
+          ctx.beginPath();
+          ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          ctx.beginPath();
+          ctx.arc(c[0] - r * 0.3, c[1] - r * 0.3, r * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      if (!ownedAt(s, x, y) && t !== 1) {
+        ctx.fillStyle = 'rgba(30,40,30,0.13)';
+        quad(ctx, P, x, y, x + 1.02, y + 1.02);
         ctx.fill();
       }
     }
   }
-  // Limites de parcelles possédées
-  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  ctx.lineWidth = Math.max(1, scale * 0.06);
-  ctx.setLineDash([scale * 0.4, scale * 0.3]);
-  const p = s.map.parcel;
+  // Clôture du périmètre de l'aéroport
+  ctx.strokeStyle = '#eef2f4';
+  ctx.lineWidth = Math.max(1, scale * 0.09);
+  ctx.fillStyle = '#9aa3ab';
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (x % p !== 0 && y % p !== 0) continue;
     const o = ownedAt(s, x, y);
-    if (x % p === 0 && x > 0 && o !== ownedAt(s, x - 1, y)) line(ctx, P, x, y, x, y + 1);
-    if (y % p === 0 && y > 0 && o !== ownedAt(s, x, y - 1)) line(ctx, P, x, y, x + 1, y);
+    if (!o) continue;
+    const edges: [number, number, number, number][] = [];
+    if (x === 0 || !ownedAt(s, x - 1, y)) edges.push([x, y, x, y + 1]);
+    if (x === W - 1 || !ownedAt(s, x + 1, y)) edges.push([x + 1, y, x + 1, y + 1]);
+    if (y === 0 || !ownedAt(s, x, y - 1)) edges.push([x, y, x + 1, y]);
+    if (y === H - 1 || !ownedAt(s, x, y + 1)) edges.push([x, y + 1, x + 1, y + 1]);
+    for (const [ax, ay, bx, by] of edges) {
+      line(ctx, P, ax, ay, bx, by);
+      const c = P(ax, ay);
+      ctx.fillRect(c[0] - scale * 0.07, c[1] - scale * 0.07, scale * 0.14, scale * 0.14);
+    }
   }
-  ctx.setLineDash([]);
 
   // Dalles / trottoirs sous les bâtiments
   for (const b of s.buildings) {

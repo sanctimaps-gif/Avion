@@ -119,8 +119,8 @@ export class App {
     this.setView(this.settings.view);
     document.getElementById('boot')?.remove();
     new Controls(this.stage, {
-      pan: (dx, dy) => { this.touchedAt = performance.now(); this.view.pan(this.cam, dx, dy); },
-      zoom: (f, x, y) => this.view.zoom(this.cam, f, x, y, this.s),
+      pan: (dx, dy) => { this.touchedAt = performance.now(); this.view.pan(this.cam, dx, dy); this.clampCam(); },
+      zoom: (f, x, y) => { this.view.zoom(this.cam, f, x, y, this.s); this.clampCam(); },
       rotate: (d) => { if (this.viewKind === '3d' || this.viewKind === 'iso') this.view.rotate(this.cam, d); },
       tilt: (d) => { this.cam.pitch = clamp(this.cam.pitch + d, 0.35, 1.45); },
       tap: (x, y) => this.onTap(x, y),
@@ -767,6 +767,13 @@ export class App {
   }
   get lang(): Lang {
     return getLang();
+  }
+
+  /** La caméra reste au-dessus de la carte : impossible de se perdre hors des limites. */
+  clampCam(): void {
+    if (!this.s) return;
+    this.cam.cx = clamp(this.cam.cx, 0, this.s.map.w);
+    this.cam.cy = clamp(this.cam.cy, 0, this.s.map.h);
   }
 
   centerOn(x: number, y: number): void {

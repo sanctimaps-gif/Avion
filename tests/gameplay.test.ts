@@ -24,23 +24,23 @@ function finishBuilds(s: GameState) {
 describe('construction', () => {
   it('refuse collisions, terrain non acquis et eau', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 10 });
-    expect(canPlace(s, 'stand_s', 30, 29, 0).reason).toBe('pb.occupied');
+    expect(canPlace(s, 'stand_s', 38, 45, 0).reason).toBe('pb.occupied');
     expect(canPlace(s, 'stand_s', 2, 2, 0).reason).toBe('pb.notOwned');
     expect(canPlace(s, 'stand_s', 200, 2, 0).reason).toBe('pb.bounds');
-    expect(canPlace(s, 'runway_l', 30, 45, 0).reason).toMatch(/lock\.tier|pb\./);
+    expect(canPlace(s, 'runway_l', 38, 61, 0).reason).toMatch(/lock\.tier|pb\./);
   });
 
   it('un poste n’est accessible que relié par taxiway à une piste', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 11 });
-    const r = place(s, 'stand_s', 26, 44, 0);
+    const r = place(s, 'stand_s', 34, 60, 0);
     expect(r.ok).toBe(true);
     finishBuilds(s);
     let st = getWorld(s).stands.find((x) => x.id === r.building!.id)!;
     expect(st.reachable).toBe(false);
     expect(getWorld(s).problems.get(r.building!.id)).toBe('pb.noTaxiway');
     // Taxiway depuis le réseau existant (y=28) jusqu’au poste.
-    placeLine(s, 'taxiway', linePoints({ x: 29, y: 29 }, { x: 29, y: 29 }));
-    placeLine(s, 'taxiway', linePoints({ x: 28, y: 29 }, { x: 28, y: 45 }));
+    placeLine(s, 'taxiway', linePoints({ x: 37, y: 45 }, { x: 37, y: 45 }));
+    placeLine(s, 'taxiway', linePoints({ x: 36, y: 45 }, { x: 36, y: 61 }));
     finishBuilds(s);
     st = getWorld(s).stands.find((x) => x.id === r.building!.id)!;
     expect(st.reachable).toBe(true);
@@ -48,7 +48,7 @@ describe('construction', () => {
 
   it('un module de terminal isolé est signalé, puis fonctionne une fois raccordé', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 12 });
-    const r = place(s, 'checkin', 44, 44, 0);
+    const r = place(s, 'checkin', 52, 60, 0);
     finishBuilds(s);
     expect(getWorld(s).problems.get(r.building!.id)).toBe('pb.noTerminal');
     expect(getWorld(s).active.has(r.building!.id)).toBe(false);
@@ -56,10 +56,10 @@ describe('construction', () => {
 
   it('achat de terrain, amélioration et démolition', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 13 });
-    expect(canBuyParcel(s, 2, 4)).toBe(true);
+    expect(canBuyParcel(s, 3, 6)).toBe(true);
     expect(canBuyParcel(s, 0, 0)).toBe(false);
     const cash = s.finance.cash;
-    expect(buyParcel(s, 2, 4)).toBe(true);
+    expect(buyParcel(s, 3, 6)).toBe(true);
     expect(s.finance.cash).toBeLessThan(cash);
     const cafe = s.buildings.find((b) => b.type === 'cafe')!;
     expect(upgrade(s, cafe)).toBe(true);
@@ -77,7 +77,7 @@ describe('opérations', () => {
     const w = getWorld(s);
     expect(runwayStatus(s, w, w.runways[0])).toBe('rw.visibility');
     s.tier = 1;
-    const r = place(s, 'ils', 34, 24, 0);
+    const r = place(s, 'ils', 42, 40, 0);
     expect(r.ok).toBe(true);
     finishBuilds(s);
     const w2 = getWorld(s);
@@ -135,8 +135,8 @@ describe('économie et progression', () => {
       // Le "joueur" accepte les offres compatibles avec ses postes et recrute selon les besoins.
       for (const o of [...s.offers]) if (o.aircraft === 'tp70' || o.aircraft === 'rj95') acceptOffer(s, o);
       if (d === 10) {
-        place(s, 'stand_s', 38, 29, 0);
-        place(s, 'checkin', 24, 36, 0);
+        place(s, 'stand_s', 46, 45, 0);
+        place(s, 'checkin', 32, 52, 0);
       }
       run(s, 1440);
       for (const c of ['checkin', 'security', 'baggage', 'ground', 'cleaning', 'maintenance', 'operations', 'admin'] as const) {

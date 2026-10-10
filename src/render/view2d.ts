@@ -71,8 +71,7 @@ export class View2D implements GameView {
     const z = cam.zoom;
     const P = this.P(cam);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.fillStyle = '#2b4a2a';
-    ctx.fillRect(0, 0, this.w, this.h);
+    this.outside(s, P, z);
     // Sol (mis en cache)
     const W = s.map.w;
     const H = s.map.h;
@@ -228,6 +227,49 @@ export class View2D implements GameView {
       }
     }
     if (fi.ghost) this.ghost(fi.ghost, P, z);
+  }
+
+  /** Abords hors carte : prolongement du terrain, autoroute au sud, brume de limite. */
+  private outside(s: GameState, P: Project, z: number): void {
+    const ctx = this.ctx;
+    const W = s.map.w;
+    const H = s.map.h;
+    const col = (t: number) => (t === 1 ? '#2f74ad' : t === 2 ? '#356d37' : t === 3 ? '#a9a85a' : t === 4 ? '#dccb95' : t === 5 ? '#a8a297' : '#5a9645');
+    ctx.fillStyle = '#4a7f3c';
+    ctx.fillRect(0, 0, this.w, this.h);
+    const [lx, ty] = P(0, 0);
+    const [rx, by] = P(W, H);
+    for (let y = 0; y < H; y++) {
+      const [, y0] = P(0, y);
+      ctx.fillStyle = col(s.map.terrain[y * W]);
+      ctx.fillRect(0, y0, Math.max(0, lx), z + 1);
+      ctx.fillStyle = col(s.map.terrain[y * W + W - 1]);
+      ctx.fillRect(rx, y0, Math.max(0, this.w - rx), z + 1);
+    }
+    for (let x = 0; x < W; x++) {
+      const [x0] = P(x, 0);
+      ctx.fillStyle = col(s.map.terrain[x]);
+      ctx.fillRect(x0, 0, z + 1, Math.max(0, ty));
+      ctx.fillStyle = col(s.map.terrain[(H - 1) * W + x]);
+      ctx.fillRect(x0, by, z + 1, Math.max(0, this.h - by));
+    }
+    // Autoroute le long du bord sud (accès à l'aéroport)
+    ctx.fillStyle = '#4b4f57';
+    ctx.fillRect(0, by + z * 0.6, this.w, z * 2.2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = Math.max(1, z * 0.06);
+    ctx.setLineDash([z * 0.6, z * 0.5]);
+    ctx.beginPath();
+    ctx.moveTo(0, by + z * 1.7);
+    ctx.lineTo(this.w, by + z * 1.7);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Brume au-delà des limites de la carte
+    ctx.fillStyle = 'rgba(12,24,40,0.45)';
+    ctx.fillRect(0, 0, this.w, Math.max(0, ty));
+    ctx.fillRect(0, by, this.w, Math.max(0, this.h - by));
+    ctx.fillRect(0, Math.max(0, ty), Math.max(0, lx), Math.max(0, by - ty));
+    ctx.fillRect(rx, Math.max(0, ty), Math.max(0, this.w - rx), Math.max(0, by - ty));
   }
 
   private progress(P: Project, b: { x: number; y: number; type: string; rot: 0 | 1; buildRemaining: number; level: number }, z: number): void {
