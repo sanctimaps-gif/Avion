@@ -102,7 +102,7 @@ export class Controls {
     this.pts.delete(e.pointerId);
     if (wasSingle) {
       if (this.capturing) this.h.dragEnd?.(p.x, p.y);
-      else if (!this.moved && !this.rightDrag && performance.now() - pt.t < 600) this.h.tap(p.x, p.y);
+      if (!this.moved && !this.rightDrag && performance.now() - pt.t < 600) this.h.tap(p.x, p.y);
       this.capturing = false;
       this.h.gestureEnd?.();
     }

@@ -38,6 +38,61 @@ function mat(color: string, opts: Partial<THREE.MeshStandardMaterialParameters> 
   return m;
 }
 
+/** Texture procédurale de façade (fenêtres), répétée selon la taille du bâtiment. */
+let facadeTex: THREE.CanvasTexture | null = null;
+function facadeTexture(): THREE.CanvasTexture {
+  if (facadeTex) return facadeTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#2b3a4f';
+  for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) g.fillRect(6 + x * 32, 8 + y * 32, 20, 14);
+  facadeTex = new THREE.CanvasTexture(c);
+  facadeTex.wrapS = facadeTex.wrapT = THREE.RepeatWrapping;
+  facadeTex.colorSpace = THREE.SRGBColorSpace;
+  return facadeTex;
+}
+let glowTex: THREE.CanvasTexture | null = null;
+function glowTexture(): THREE.CanvasTexture {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#000000';
+  g.fillRect(0, 0, 64, 64);
+  g.fillStyle = '#ffffff';
+  for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) if ((x + y * 3) % 4 !== 3) g.fillRect(6 + x * 32, 8 + y * 32, 20, 14);
+  glowTex = new THREE.CanvasTexture(c);
+  glowTex.wrapS = glowTex.wrapT = THREE.RepeatWrapping;
+  return glowTex;
+}
+/** Boîte dont les UV suivent les dimensions réelles (fenêtres non déformées). */
+function wallGeo(w: number, h: number, d: number): THREE.BufferGeometry {
+  const key = `wall:${w.toFixed(2)}:${h.toFixed(2)}:${d.toFixed(2)}`;
+  return geo(key, () => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    const uv = g.getAttribute('uv') as THREE.BufferAttribute;
+    // Ordre des faces : +x, −x, +y, −y, +z, −z (4 sommets chacune).
+    const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) for (let i = 0; i < 4; i++) {
+      const k = f * 4 + i;
+      uv.setXY(k, uv.getX(k) * dims[f][0] * 1.2, uv.getY(k) * dims[f][1] * 1.4);
+    }
+    uv.needsUpdate = true;
+    return g;
+  });
+}
+const wallMats = new Set<THREE.MeshStandardMaterial>();
+function wallMat(color: string): THREE.MeshStandardMaterial {
+  const m = mat(color, { map: facadeTexture(), emissive: new THREE.Color('#ffc66b'), emissiveMap: glowTexture(), emissiveIntensity: 0 }, 'wall');
+  wallMats.add(m);
+  return m;
+}
+
 export class View3D implements GameView {
   kind = '3d' as const;
   canvas: HTMLCanvasElement;
@@ -237,13 +292,14 @@ export class View3D implements GameView {
         return g;
       }
       default: {
-        const body = add(new THREE.Mesh(boxG, mat(d.color)));
-        body.scale.set(f.w * 0.94, hgt, f.h * 0.94);
+        const windows = hgt >= 0.9 && !['ils', 'parking_m', 'power_plant', 'fuel_depot', 'snow_depot'].includes(b.type);
+        const body = add(new THREE.Mesh(windows ? wallGeo(f.w * 0.94, hgt, f.h * 0.94) : boxG, windows ? wallMat(d.color) : mat(d.color)));
+        if (!windows) body.scale.set(f.w * 0.94, hgt, f.h * 0.94);
         body.position.y = hgt / 2;
         const roof = add(new THREE.Mesh(boxG, mat(d.roof ?? d.color)));
         roof.scale.set(f.w * 0.96, 0.08, f.h * 0.96);
         roof.position.y = hgt + 0.04;
-        if (d.isTerminal || b.type === 'hotel' || b.type === 'admin' || b.type === 'rnd') {
+        if (d.isTerminal) {
           // Bandeaux vitrés / fenêtres (s'illuminent la nuit)
           const floors = Math.max(1, Math.round(hgt / 0.9));
           for (let i = 0; i < floors; i++) {
@@ -548,6 +604,7 @@ export class View3D implements GameView {
     this.hemi.color.set(dl > 0.3 ? '#cfe5ff' : '#4a5a88');
     const night = 1 - dl;
     this.windowMat.emissiveIntensity = night * 1.4;
+    for (const m of wallMats) m.emissiveIntensity = night * 1.2;
     this.glassMat.emissiveIntensity = night * 0.9;
     (this.runwayLights.material as THREE.PointsMaterial).opacity = clamp(night * 1.4, 0, 1);
     this.runwayLights.visible = night > 0.2;

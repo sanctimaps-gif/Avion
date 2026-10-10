@@ -172,7 +172,8 @@ label.field > span { display: block; color: var(--muted); font-size: 0.85em; mar
 .placebar .iconbtn { min-width: 48px; min-height: 48px; font-size: 1.3em; }
 
 /* ---------- Notifications ---------- */
-.toasts { position: absolute; left: 50%; transform: translateX(-50%); z-index: 40; display: flex; flex-direction: column; gap: 6px; width: min(94vw, 460px); pointer-events: none; }
+.toasts { position: absolute; left: 8px; right: 74px; z-index: 40; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.toasts .toast { max-width: 460px; }
 .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--sky); border-radius: 12px; padding: 8px 12px; font-size: 0.9em; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); animation: up 0.2s ease-out; pointer-events: auto; }
 .toast.good { border-left-color: var(--good); } .toast.warn { border-left-color: var(--warn); } .toast.bad { border-left-color: var(--bad); }
 

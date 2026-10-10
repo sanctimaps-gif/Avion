@@ -1,0 +1,8 @@
+{
+  "appId": "com.airportmanager.game",
+  "appName": "Airport Manager",
+  "webDir": "dist",
+  "backgroundColor": "#0a1a33",
+  "android": { "allowMixedContent": false },
+  "ios": { "contentInset": "never" }
+}

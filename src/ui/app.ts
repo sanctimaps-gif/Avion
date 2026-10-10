@@ -145,6 +145,7 @@ export class App {
     this.selectedFlight = null;
     this.prev.clear();
     this.clock.acc = 0;
+    this.gameOverShown = false;
     // Centre la caméra sur le terminal principal.
     const term = s.buildings.find((b) => b.type.startsWith('terminal')) ?? s.buildings[0];
     if (term) {

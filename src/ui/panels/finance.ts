@@ -1,7 +1,7 @@
 import { BUILDINGS } from '../../data/buildings';
 import { clamp, money, num, pct } from '../../core/format';
 import { t } from '../../core/i18n';
-import { aggregate, buildingRoi, CAPEX, energyCostPerDay, FINANCING_IN, FINANCING_OUT, forecast, loanRate, maxDebt, operatingProfit, repayLoan, takeLoan, totalDebt } from '../../sim/economy';
+import { aggregate, buildingRoi, upkeepPerDay, CAPEX, energyCostPerDay, FINANCING_IN, FINANCING_OUT, forecast, loanRate, maxDebt, operatingProfit, repayLoan, takeLoan, totalDebt } from '../../sim/economy';
 import { dailyWages } from '../../sim/staff';
 import { getWorld } from '../../sim/world';
 import type { CommerceKind, Ledger } from '../../sim/types';
@@ -42,7 +42,7 @@ export function financePanel(app: App): HTMLElement {
       section(t('fin.fixedCosts'),
         kv(t('exp.wages'), money(dailyWages(s)) + ' / ' + t('ui.dayShort')),
         kv(t('exp.energy'), money(energyCostPerDay(s)) + ' / ' + t('ui.dayShort')),
-        kv(t('exp.upkeep'), money(s.buildings.reduce((a, b) => a + BUILDINGS[b.type].upkeep, 0)) + ' / ' + t('ui.dayShort'))),
+        kv(t('exp.upkeep'), money(s.buildings.reduce((a, b) => a + upkeepPerDay(s, b), 0)) + ' / ' + t('ui.dayShort'))),
       maintenanceCard(app),
     );
     return root;
