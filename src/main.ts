@@ -7,7 +7,11 @@ import { App } from './ui/app';
  * Aucune ressource réseau n'est utilisée : le jeu fonctionne hors ligne.
  */
 const app = new App();
-void app.start();
+app.start().catch((e: unknown) => {
+  const m = document.getElementById('boot-msg');
+  if (m) m.textContent = 'Erreur au démarrage : ' + (e instanceof Error ? e.message : String(e));
+  console.error(e);
+});
 
 // Mise en cache hors ligne quand le jeu est servi en HTTPS (PWA installable).
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

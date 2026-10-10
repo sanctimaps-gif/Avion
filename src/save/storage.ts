@@ -106,7 +106,8 @@ export async function openBestStore(): Promise<KVStore> {
   try {
     if (typeof indexedDB !== 'undefined') {
       const s = new IdbStore();
-      await s.keys();
+      // Certains navigateurs (navigation privée, iframes) bloquent IndexedDB sans répondre.
+      await Promise.race([s.keys(), new Promise((_, rej) => setTimeout(() => rej(new Error('idb-timeout')), 2000))]);
       return s;
     }
   } catch {

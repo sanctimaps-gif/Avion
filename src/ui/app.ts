@@ -117,6 +117,7 @@ export class App {
     }
     this.setGame(state);
     this.setView(this.settings.view);
+    document.getElementById('boot')?.remove();
     new Controls(this.stage, {
       pan: (dx, dy) => { this.touchedAt = performance.now(); this.view.pan(this.cam, dx, dy); },
       zoom: (f, x, y) => this.view.zoom(this.cam, f, x, y, this.s),
