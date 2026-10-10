@@ -10,7 +10,7 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.route('**/*', (r) => (/^(file|data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
-await page.goto('file://' + resolve('dist/index.html'));
+await page.goto('file://' + resolve('index.html'));
 await page.waitForTimeout(1500);
 await page.locator('.viewbar button', { hasText: '2D' }).click();
 // Écran de la case (x, y) en vue 2D.

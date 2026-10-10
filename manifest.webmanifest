@@ -1,0 +1,12 @@
+{
+  "name": "Airport Manager",
+  "short_name": "Airport",
+  "description": "Construis, gère et fais décoller ton aéroport — jeu hors ligne.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a1a33",
+  "theme_color": "#0a1a33",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

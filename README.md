@@ -8,7 +8,8 @@ une partie Carrière est créée ; ensuite, la dernière partie jouée reprend a
 
 | Plateforme | Comment |
 |---|---|
-| N'importe quel appareil | `npm run build`, puis ouvrir `dist/index.html` (fichier unique autonome, fonctionne sans réseau, même en `file://`). |
+| GitHub Pages | Le fichier `index.html` à la racine du dépôt est le jeu compilé : avec Pages réglé sur la branche `main` (dossier racine), le jeu est jouable à l'adresse du site. |
+| N'importe quel appareil | `npm run build`, puis ouvrir `dist/index.html` dans Safari/Chrome (fichier unique autonome, fonctionne sans réseau ; l'aperçu de l'app Fichiers ne lance pas le jeu). |
 | Web installable (PWA) | Servir `dist/` en HTTPS (ex. workflow « Publier la version web » sur GitHub Pages) → « Ajouter à l'écran d'accueil ». Le service worker met le jeu en cache pour le hors-ligne. |
 | Android | `npm run android` (Android Studio requis) ou télécharger l'APK de débogage produit par la CI (artefact `airport-manager-android-debug`). |
 | iOS | `npm run ios` sur un Mac avec Xcode + CocoaPods (`cd ios/App && pod install` la première fois). |
@@ -24,7 +25,8 @@ une partie Carrière est créée ; ensuite, la dernière partie jouée reprend a
 
 ```bash
 npm install
-npm run dev        # serveur de développement
+npm run dev        # serveur de développement (ouvrir /game.html)
+# index.html (racine) = jeu compilé, régénéré par npm run build : à committer après chaque build
 npm test           # tests unitaires et de simulation (Vitest)
 npm run build      # vérification TypeScript + fichier unique dist/index.html
 npm run test:e2e   # tests navigateur (Chromium, réseau bloqué) + captures dans screenshots/

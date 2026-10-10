@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 const exe = process.env.CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const out = resolve(process.argv[2] || 'screenshots');
 mkdirSync(out, { recursive: true });
-const url = 'file://' + resolve('dist/index.html');
+const url = 'file://' + resolve('index.html');
 const browser = await chromium.launch({ executablePath: exe, args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
 const ctx = await browser.newContext({ viewport: { width: 412, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await ctx.newPage();

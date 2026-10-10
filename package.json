@@ -6,7 +6,7 @@
   "description": "Airport Manager - jeu mobile hors ligne de gestion d'aéroport",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/publish-root.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview",
