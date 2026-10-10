@@ -20,6 +20,21 @@ const TEX_PX = 24;
 
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
 
+/** Informations de diagnostic WebGL (affichées dans les paramètres). */
+export function webglInfo(): { webgl2: boolean; renderer: string } {
+  try {
+    const c = document.createElement('canvas');
+    const gl = c.getContext('webgl2') as WebGL2RenderingContext | null;
+    if (!gl) return { webgl2: false, renderer: '' };
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const r = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER));
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return { webgl2: true, renderer: r };
+  } catch {
+    return { webgl2: false, renderer: '' };
+  }
+}
+
 export class View3D implements GameView {
   kind = '3d' as const;
   canvas: HTMLCanvasElement;
@@ -50,15 +65,35 @@ export class View3D implements GameView {
   private mapW = 72;
   private mapH = 56;
 
+  /** Appelé si le contexte WebGL est perdu (mémoire saturée sur mobile) ou restauré. */
+  onContextChange: ((lost: boolean) => void) | null = null;
+  lost = false;
+
   constructor() {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+    const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.maxTouchPoints ?? 0) > 1;
+    this.renderer = new THREE.WebGLRenderer({ antialias: !mobile || (window.devicePixelRatio || 1) < 2, powerPreference: 'default', preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: false });
     this.canvas = this.renderer.domElement;
+    this.canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.lost = true;
+      this.onContextChange?.(true);
+    });
+    this.canvas.addEventListener('webglcontextrestored', () => {
+      this.lost = false;
+      // Tout reconstruire : textures et maillages sont à recréer.
+      this.groundKey = '';
+      for (const v of this.buildings.values()) this.scene.remove(v.obj);
+      this.buildings.clear();
+      for (const g of this.planes.values()) this.scene.remove(g);
+      this.planes.clear();
+      this.onContextChange?.(false);
+    });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene.add(this.hemi);
     this.scene.add(this.sun);
     this.scene.add(this.sun.target);
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
     const sc = this.sun.shadow.camera;
     sc.left = -60;
     sc.right = 60;
@@ -102,7 +137,7 @@ export class View3D implements GameView {
   resize(w: number, h: number, dpr: number): void {
     this.w = w;
     this.h = h;
-    this.renderer.setPixelRatio(Math.min(dpr, this.quality === 'high' ? 2 : this.quality === 'low' ? 1 : 1.5));
+    this.renderer.setPixelRatio(Math.min(dpr, this.quality === 'high' ? 2 : this.quality === 'low' ? 1 : 1.25));
     this.renderer.setSize(w, h, false);
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
@@ -452,12 +487,17 @@ export class View3D implements GameView {
   }
 
   render(s: GameState, cam: Camera, fi: FrameInfo): void {
+    if (this.lost) return;
     this.mapW = s.map.w;
     this.mapH = s.map.h;
     if (this.quality !== fi.quality) {
       this.quality = fi.quality;
       this.renderer.shadowMap.enabled = fi.quality !== 'low';
       this.sun.castShadow = fi.quality !== 'low';
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if (m) m.needsUpdate = true;
+      });
       this.resize(this.w, this.h, window.devicePixelRatio || 1);
     }
     const w = getWorld(s);

@@ -5,6 +5,7 @@ import type { GameMode } from '../../sim/types';
 import type { SlotMeta } from '../../save/saveManager';
 import type { App } from '../app';
 import { btn, h, section } from '../dom';
+import { webglInfo } from '../../render/view3d';
 import { dateLabel, logText } from '../text';
 import { clock } from '../../core/format';
 
@@ -174,7 +175,14 @@ export function settingsPanel(app: App): HTMLElement {
     section(t('set.game'),
       seg(t('ng.events'), [[0, t('freq.0')], [1, t('freq.1')], [2, t('freq.2')], [3, t('freq.3')]], () => app.s.settings.eventsFreq, (v) => (app.s.settings.eventsFreq = v)),
       seg(t('ng.weather'), [[true, t('ui.yes')], [false, t('ui.no')]], () => app.s.settings.weather, (v) => (app.s.settings.weather = v))),
-    h('p', { class: 'hint' }, t('set.hint')));
+    h('p', { class: 'hint' }, t('set.hint')),
+    section(t('set.diag'), (() => {
+      const wi = webglInfo();
+      return h('div', { class: 'small muted', style: 'user-select:text' },
+        h('div', null, `WebGL 2 : ${wi.webgl2 ? '✔' : '✘'} ${wi.renderer}`),
+        h('div', null, `${innerWidth}×${innerHeight} @${devicePixelRatio}x`),
+        h('div', null, navigator.userAgent));
+    })()));
 }
 
 export function logPanel(app: App): HTMLElement {

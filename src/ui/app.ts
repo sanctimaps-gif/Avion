@@ -15,7 +15,7 @@ import { openBestStore } from '../save/storage';
 import { Controls } from '../render/input';
 import { View2D } from '../render/view2d';
 import { ViewIso } from '../render/viewIso';
-import { View3D } from '../render/view3d';
+import { View3D, webglInfo } from '../render/view3d';
 import { LAYERS } from '../render/overlays';
 import type { Camera, FrameInfo, GameView, Ghost, Quality, ViewKind } from '../render/view';
 import { btn, clear, h } from './dom';
@@ -227,11 +227,23 @@ export class App {
   setView(kind: ViewKind): void {
     if (this.view) this.view.canvas.remove();
     let v = this.views[kind];
+    if (v instanceof View3D && v.lost) {
+      v.dispose();
+      v = undefined;
+    }
     if (!v) {
       if (kind === '3d') {
         try {
           // Le contexte WebGL n'est créé que lorsque la vue 3D est demandée.
-          v = new View3D();
+          if (!webglInfo().webgl2) throw new Error('webgl2');
+          const v3 = new View3D();
+          v3.onContextChange = (lost) => {
+            if (lost) {
+              this.toast(t('toast.3dLost'), 'warn');
+              if (this.viewKind === '3d') this.setView('iso');
+            }
+          };
+          v = v3;
         } catch (e) {
           console.error(e);
           this.toast(t('toast.no3d'), 'bad');
@@ -241,6 +253,11 @@ export class App {
       } else if (kind === 'iso') v = new ViewIso();
       else v = new View2D(kind);
       this.views[kind] = v;
+    }
+    // Angle de vue en perspective plus naturel à l'entrée en 3D.
+    if (kind === '3d' && this.viewKind !== '3d' && Math.abs(this.cam.rot % (Math.PI / 2)) < 0.01) {
+      this.cam.rot += 0.55;
+      this.cam.pitch = 0.7;
     }
     this.viewKind = kind;
     this.view = v;
@@ -296,6 +313,7 @@ export class App {
     requestAnimationFrame(this.loop);
   };
   private frac = 0;
+  private renderErrors = 0;
   private gameOverShown = false;
 
   private snapshot(): void {
@@ -317,8 +335,16 @@ export class App {
     };
     try {
       this.view.render(this.s, this.cam, fi);
+      this.renderErrors = 0;
     } catch (e) {
       console.error(e);
+      // Une erreur répétée ne doit jamais laisser un écran figé : on l'affiche et on change de vue.
+      if (++this.renderErrors === 3) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.toast(t('toast.renderError', { view: t('view.' + this.viewKind), msg }), 'bad');
+        if (this.viewKind !== 'iso') this.setView('iso');
+        else if (this.viewKind === 'iso') this.setView('top');
+      }
     }
   }
 

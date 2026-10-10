@@ -17,9 +17,12 @@ export const fr: Record<string, string> = {
   'layer.congestion': '🚦 Congestion', 'layer.logistics': '📦 Logistique', 'layer.staff': '👷 Personnel', 'layer.noise': '🔊 Nuisances',
   'menu.title': 'Menu', 'menu.saves': 'Mes parties', 'menu.new': 'Nouvelle partie', 'menu.settings': 'Paramètres', 'menu.log': 'Journal de bord',
   'menu.saveNow': 'Sauvegarder maintenant', 'menu.offline': 'Jeu 100 % hors ligne : vos parties sont enregistrées sur cet appareil.',
+  'toast.3dLost': 'La 3D a été interrompue par le téléphone (mémoire graphique). Passage en vue isométrique.',
+  'toast.renderError': 'Erreur d\'affichage en {view} : {msg}. Changement de vue.',
+  'set.diag': 'Diagnostic graphique',
   'toast.saved': 'Partie sauvegardée', 'toast.saveError': 'Erreur de sauvegarde', 'toast.loaded': 'Partie « {name} » chargée',
   'toast.newGame': 'Nouvelle partie : {name}', 'toast.recovered': 'Sauvegarde endommagée : la copie de secours a été restaurée',
-  'toast.no3d': 'La 3D n\'est pas disponible sur cet appareil', 'toast.building': '{name} en construction ({cost})',
+  'toast.no3d': 'La 3D (WebGL 2) n\'est pas disponible dans ce navigateur. Essayez Safari ou Chrome à jour, hors mode Isolement.', 'toast.building': '{name} en construction ({cost})',
   'toast.line': '{n} case(s) de {name} en construction', 'toast.lineNone': 'Aucune case constructible', 'toast.moved': 'Bâtiment déplacé',
   'place.lineStart': 'Touchez la case de départ', 'place.lineEnd': 'Touchez la case d\'arrivée', 'place.lineCost': '{n} cases · {cost}',
   // ---------- Paliers ----------
