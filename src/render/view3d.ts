@@ -18,80 +18,7 @@ import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from '
  */
 const TEX_PX = 24;
 
-const geoCache = new Map<string, THREE.BufferGeometry>();
-function geo(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
-  let g = geoCache.get(key);
-  if (!g) {
-    g = make();
-    geoCache.set(key, g);
-  }
-  return g;
-}
-const matCache = new Map<string, THREE.MeshStandardMaterial>();
-function mat(color: string, opts: Partial<THREE.MeshStandardMaterialParameters> = {}, key = ''): THREE.MeshStandardMaterial {
-  const k = color + key;
-  let m = matCache.get(k);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color, roughness: 0.75, metalness: 0.05, ...opts });
-    matCache.set(k, m);
-  }
-  return m;
-}
-
-/** Texture procédurale de façade (fenêtres), répétée selon la taille du bâtiment. */
-let facadeTex: THREE.CanvasTexture | null = null;
-function facadeTexture(): THREE.CanvasTexture {
-  if (facadeTex) return facadeTex;
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 64;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#2b3a4f';
-  for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) g.fillRect(6 + x * 32, 8 + y * 32, 20, 14);
-  facadeTex = new THREE.CanvasTexture(c);
-  facadeTex.wrapS = facadeTex.wrapT = THREE.RepeatWrapping;
-  facadeTex.colorSpace = THREE.SRGBColorSpace;
-  return facadeTex;
-}
-let glowTex: THREE.CanvasTexture | null = null;
-function glowTexture(): THREE.CanvasTexture {
-  if (glowTex) return glowTex;
-  const c = document.createElement('canvas');
-  c.width = 64;
-  c.height = 64;
-  const g = c.getContext('2d')!;
-  g.fillStyle = '#000000';
-  g.fillRect(0, 0, 64, 64);
-  g.fillStyle = '#ffffff';
-  for (let x = 0; x < 2; x++) for (let y = 0; y < 2; y++) if ((x + y * 3) % 4 !== 3) g.fillRect(6 + x * 32, 8 + y * 32, 20, 14);
-  glowTex = new THREE.CanvasTexture(c);
-  glowTex.wrapS = glowTex.wrapT = THREE.RepeatWrapping;
-  return glowTex;
-}
-/** Boîte dont les UV suivent les dimensions réelles (fenêtres non déformées). */
-function wallGeo(w: number, h: number, d: number): THREE.BufferGeometry {
-  const key = `wall:${w.toFixed(2)}:${h.toFixed(2)}:${d.toFixed(2)}`;
-  return geo(key, () => {
-    const g = new THREE.BoxGeometry(w, h, d);
-    const uv = g.getAttribute('uv') as THREE.BufferAttribute;
-    // Ordre des faces : +x, −x, +y, −y, +z, −z (4 sommets chacune).
-    const dims: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-    for (let f = 0; f < 6; f++) for (let i = 0; i < 4; i++) {
-      const k = f * 4 + i;
-      uv.setXY(k, uv.getX(k) * dims[f][0] * 1.2, uv.getY(k) * dims[f][1] * 1.4);
-    }
-    uv.needsUpdate = true;
-    return g;
-  });
-}
-const wallMats = new Set<THREE.MeshStandardMaterial>();
-function wallMat(color: string): THREE.MeshStandardMaterial {
-  const m = mat(color, { map: facadeTexture(), emissive: new THREE.Color('#ffc66b'), emissiveMap: glowTexture(), emissiveIntensity: 0 }, 'wall');
-  wallMats.add(m);
-  return m;
-}
+import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
 
 export class View3D implements GameView {
   kind = '3d' as const;
@@ -245,111 +172,67 @@ export class View3D implements GameView {
       g.add(scaf);
       return g;
     }
-    const add = (m: THREE.Mesh) => {
-      m.castShadow = true;
-      m.receiveShadow = true;
-      g.add(m);
-      return m;
-    };
-    const boxG = geo('box', () => new THREE.BoxGeometry(1, 1, 1));
-    switch (true) {
-      case b.type === 'trees': {
-        for (let i = 0; i < 4; i++) {
-          const cone = add(new THREE.Mesh(geo('cone', () => new THREE.ConeGeometry(0.45, 1.3, 7)), mat('#2f7d4a')));
-          cone.position.set((i % 2) - 0.5, 0.95, Math.floor(i / 2) - 0.5);
-          const trunk = add(new THREE.Mesh(geo('trunk', () => new THREE.CylinderGeometry(0.07, 0.09, 0.4, 5)), mat('#5b3a1e')));
-          trunk.position.set((i % 2) - 0.5, 0.2, Math.floor(i / 2) - 0.5);
-        }
-        return g;
-      }
-      case b.type.startsWith('tower'): {
-        const r = f.w * 0.18;
-        const shaft = add(new THREE.Mesh(geo('cyl8', () => new THREE.CylinderGeometry(1, 1, 1, 10)), mat(d.color)));
-        shaft.scale.set(r, hgt, r);
-        shaft.position.y = hgt / 2;
-        const cab = add(new THREE.Mesh(geo('cab', () => new THREE.CylinderGeometry(1, 0.8, 1, 10)), this.glassMat));
-        cab.scale.set(r * 2.3, 0.5, r * 2.3);
-        cab.position.y = hgt + 0.25;
-        const roof = add(new THREE.Mesh(geo('cyl8', () => new THREE.CylinderGeometry(1, 1, 1, 10)), mat('#e2e8f0')));
-        roof.scale.set(r * 2.6, 0.1, r * 2.6);
-        roof.position.y = hgt + 0.55;
-        const base = add(new THREE.Mesh(boxG, mat('#cbd5e1')));
-        base.scale.set(f.w * 0.8, 0.6, f.h * 0.8);
-        base.position.y = 0.3;
-        return g;
-      }
-      case b.type === 'hangar': {
-        const roof = new THREE.Mesh(geo('halfcyl', () => new THREE.CylinderGeometry(1, 1, 1, 16, 1, false, 0, Math.PI)), mat(d.roof ?? d.color));
-        roof.castShadow = true;
-        roof.receiveShadow = true;
-        const along = f.w >= f.h;
-        roof.rotation.z = Math.PI / 2;
-        roof.scale.set(hgt, (along ? f.w : f.h) * 0.95, (along ? f.h : f.w) * 0.48);
-        const holder = new THREE.Group();
-        holder.add(roof);
-        if (!along) holder.rotation.y = Math.PI / 2;
-        g.add(holder);
-        return g;
-      }
-      default: {
-        const windows = hgt >= 0.9 && !['ils', 'parking_m', 'power_plant', 'fuel_depot', 'snow_depot'].includes(b.type);
-        const body = add(new THREE.Mesh(windows ? wallGeo(f.w * 0.94, hgt, f.h * 0.94) : boxG, windows ? wallMat(d.color) : mat(d.color)));
-        if (!windows) body.scale.set(f.w * 0.94, hgt, f.h * 0.94);
-        body.position.y = hgt / 2;
-        const roof = add(new THREE.Mesh(boxG, mat(d.roof ?? d.color)));
-        roof.scale.set(f.w * 0.96, 0.08, f.h * 0.96);
-        roof.position.y = hgt + 0.04;
-        if (d.isTerminal) {
-          // Bandeaux vitrés / fenêtres (s'illuminent la nuit)
-          const floors = Math.max(1, Math.round(hgt / 0.9));
-          for (let i = 0; i < floors; i++) {
-            const band = add(new THREE.Mesh(boxG, d.isTerminal ? this.glassMat : this.windowMat));
-            band.scale.set(f.w * 0.955, Math.min(0.35, hgt * 0.3), f.h * 0.955);
-            band.position.y = (hgt / floors) * (i + 0.55);
-            band.castShadow = false;
-          }
-        }
-        if (b.type === 'power_plant') {
-          for (const dx of [-0.6, 0.6]) {
-            const ch = add(new THREE.Mesh(geo('cyl8', () => new THREE.CylinderGeometry(1, 1, 1, 10)), mat('#9ca3af')));
-            ch.scale.set(0.25, 2.2, 0.25);
-            ch.position.set(dx, hgt + 1.1, 0.5);
-          }
-        }
-        if (b.type === 'ils') {
-          body.scale.set(0.15, hgt, 0.15);
-          const arr = add(new THREE.Mesh(boxG, mat('#f2c94c')));
-          arr.scale.set(0.8, 0.2, 0.2);
-          arr.position.y = hgt;
-        }
-        if (b.type === 'parking_m') {
-          for (let i = 1; i < 3; i++) {
-            const slab = add(new THREE.Mesh(boxG, mat('#d1d5db')));
-            slab.scale.set(f.w * 0.97, 0.06, f.h * 0.97);
-            slab.position.y = (hgt / 3) * i;
-          }
-        }
-        if (b.brokenFor > 0) {
-          const warn = add(new THREE.Mesh(geo('cone', () => new THREE.ConeGeometry(0.45, 1.3, 7)), mat('#ef4444', { emissive: new THREE.Color('#ef4444'), emissiveIntensity: 0.8 }, 'warn')));
-          warn.scale.set(0.6, 0.6, 0.6);
-          warn.rotation.x = Math.PI;
-          warn.position.y = hgt + 1.2;
-        }
-      }
+    const model = buildingModel(b.type, f.w, f.h, b.level, b.id);
+    g.add(model);
+    if (b.brokenFor > 0) {
+      const warn = new THREE.Mesh(geo('warncone', () => new THREE.ConeGeometry(0.3, 0.8, 6)), mat('#ef4444', { emissive: new THREE.Color('#ef4444'), emissiveIntensity: 0.8 }, 'warn'));
+      warn.rotation.x = Math.PI;
+      warn.position.y = hgt + 1.3;
+      g.add(warn);
     }
     return g;
+  }
+
+  /** Décor des éléments plats et passerelles d'embarquement des postes au contact. */
+  private makeDecor(s: GameState, b: Building): THREE.Object3D | null {
+    const f = bFootprint(b);
+    if (b.buildRemaining > 0) return null;
+    const d = BUILDINGS[b.type];
+    if (d.standSize) {
+      const w = getWorld(s);
+      const st = w.stands.find((x) => x.id === b.id);
+      if (!st?.contact) return null;
+      // Côté du poste touchant un bâtiment de terminal
+      const W = s.map.w;
+      const sides: [number, number, number, number][] = [];
+      for (let x = b.x; x < b.x + f.w; x++) { sides.push([x, b.y - 1, 0, -1]); sides.push([x, b.y + f.h, 0, 1]); }
+      for (let y = b.y; y < b.y + f.h; y++) { sides.push([b.x - 1, y, -1, 0]); sides.push([b.x + f.w, y, 1, 0]); }
+      const hit = sides.find(([x, y]) => {
+        if (x < 0 || y < 0 || x >= W || y >= s.map.h) return false;
+        const nb = w.byId.get(w.occ[y * W + x]);
+        return !!nb && !!BUILDINGS[nb.type].isTerminal;
+      });
+      if (!hit) return null;
+      const g = new THREE.Group();
+      const jw = jetway(Math.min(f.w, f.h) * 0.42);
+      // La passerelle part du bord du terminal vers le centre du poste.
+      const cx = b.x + f.w / 2;
+      const cz = b.y + f.h / 2;
+      const ex = hit[2] !== 0 ? (hit[2] < 0 ? b.x : b.x + f.w) : cx + f.w * 0.25;
+      const ez = hit[3] !== 0 ? (hit[3] < 0 ? b.y : b.y + f.h) : cz + f.h * 0.25;
+      jw.position.set(ex, 0, ez);
+      if (hit[3] !== 0) jw.rotation.y = hit[3] < 0 ? -Math.PI / 2 : Math.PI / 2;
+      if (hit[2] !== 0) jw.rotation.y = hit[2] < 0 ? 0 : Math.PI;
+      g.add(jw);
+      return g;
+    }
+    const dec = flatDecor(b.type, f.w, f.h, b.id);
+    if (!dec) return null;
+    dec.position.set(b.x + f.w / 2, 0, b.y + f.h / 2);
+    return dec;
   }
 
   private syncBuildings(s: GameState): void {
     const seen = new Set<number>();
     for (const b of s.buildings) {
-      if (FLAT.has(b.type) || BUILDINGS[b.type].linear) continue;
+      if (BUILDINGS[b.type].linear) continue;
+      const flat = FLAT.has(b.type);
       seen.add(b.id);
-      const key = `${b.type}|${b.x}|${b.y}|${b.rot}|${b.level}|${b.buildRemaining > 0 ? Math.floor(b.buildRemaining / 60) : 'ok'}|${b.brokenFor > 0}`;
+      const key = `${b.type}|${b.x}|${b.y}|${b.rot}|${b.level}|${b.buildRemaining > 0 ? Math.floor(b.buildRemaining / 60) : 'ok'}|${b.brokenFor > 0}|${flat ? getWorld(s).rev : ''}`;
       const cur = this.buildings.get(b.id);
       if (cur && cur.key === key) continue;
       if (cur) this.scene.remove(cur.obj);
-      const obj = this.makeBuilding(b);
+      const obj = flat ? this.makeDecor(s, b) ?? new THREE.Group() : this.makeBuilding(b);
       this.scene.add(obj);
       this.buildings.set(b.id, { obj, key });
     }
@@ -377,9 +260,18 @@ export class View3D implements GameView {
     const stripe = new THREE.Mesh(geo('box', () => new THREE.BoxGeometry(1, 1, 1)), livery);
     stripe.scale.set(L * 0.8, R * 0.35, R * 2.05);
     stripe.position.set(-L * 0.05, 0, 0);
-    const wing = new THREE.Mesh(geo('box', () => new THREE.BoxGeometry(1, 1, 1)), grey);
-    wing.scale.set(L * 0.16, R * 0.25, a.span);
-    wing.position.set(-L * 0.08, -R * 0.3, 0);
+    // Ailes en flèche (une demi-aile par côté)
+    const sweep = a.prop ? 0.05 : 0.45;
+    const wings: THREE.Mesh[] = [];
+    for (const sgn of [1, -1]) {
+      const wgt = new THREE.Mesh(geo('box', () => new THREE.BoxGeometry(1, 1, 1)), grey);
+      wgt.scale.set(L * 0.13, R * 0.22, a.span / 2);
+      wgt.rotation.y = sgn * sweep;
+      wgt.position.set(-L * 0.08 - Math.sin(sweep) * a.span * 0.22, -R * 0.35, sgn * a.span * 0.24);
+      wings.push(wgt);
+    }
+    const wing = new THREE.Group();
+    wing.add(...wings);
     const stab = new THREE.Mesh(geo('box', () => new THREE.BoxGeometry(1, 1, 1)), grey);
     stab.scale.set(L * 0.1, R * 0.2, a.span * 0.36);
     stab.position.set(-L * 0.44, R * 0.4, 0);
@@ -604,7 +496,7 @@ export class View3D implements GameView {
     this.hemi.color.set(dl > 0.3 ? '#cfe5ff' : '#4a5a88');
     const night = 1 - dl;
     this.windowMat.emissiveIntensity = night * 1.4;
-    for (const m of wallMats) m.emissiveIntensity = night * 1.2;
+    for (const m of nightMats) m.emissiveIntensity = night * 1.2;
     this.glassMat.emissiveIntensity = night * 0.9;
     (this.runwayLights.material as THREE.PointsMaterial).opacity = clamp(night * 1.4, 0, 1);
     this.runwayLights.visible = night > 0.2;

@@ -10,6 +10,7 @@ import { drawGround, FLAT, GroundCache } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 import { drawWeather2D } from './weatherfx';
+import { drawRoof } from './roofs';
 
 /** Vue 2D du dessus (et base de la vue hybride). */
 const CACHE_PX = 24;
@@ -95,10 +96,21 @@ export class View2D implements GameView {
       const bh = f.h * z;
       if (x0 > this.w || y0 > this.h || x0 + bw < 0 || y0 + bh < 0) continue;
       if (b.type === 'trees') {
-        ctx.fillStyle = '#2f7d4a';
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 5; i++) {
+          const cx = x0 + bw * [0.28, 0.72, 0.3, 0.7, 0.5][i];
+          const cy = y0 + bh * [0.3, 0.28, 0.72, 0.7, 0.5][i];
+          const r = z * [0.42, 0.38, 0.4, 0.44, 0.34][i];
+          ctx.fillStyle = 'rgba(0,0,0,0.2)';
           ctx.beginPath();
-          ctx.arc(x0 + bw * (0.3 + (i % 2) * 0.4), y0 + bh * (0.3 + Math.floor(i / 2) * 0.4), z * 0.45, 0, Math.PI * 2);
+          ctx.arc(cx + r * 0.3, cy + r * 0.3, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = ['#2f7d4a', '#3a8f52', '#2a6e40', '#358a4c', '#46a05e'][i];
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.beginPath();
+          ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.45, 0, Math.PI * 2);
           ctx.fill();
         }
         continue;
@@ -107,29 +119,28 @@ export class View2D implements GameView {
       ctx.fillStyle = 'rgba(0,0,0,0.22)';
       const sh = Math.min(z * 0.6, d.height * z * 0.25);
       ctx.fillRect(x0 + sh, y0 + sh, bw, bh);
-      ctx.fillStyle = d.roof ?? d.color;
-      ctx.fillRect(x0, y0, bw, bh);
-      ctx.fillStyle = d.color;
-      ctx.fillRect(x0 + bw * 0.08, y0 + bh * 0.08, bw * 0.84, bh * 0.84);
-      ctx.strokeStyle = 'rgba(15,23,42,0.5)';
+      // Toit détaillé (même dessin que la vue isométrique)
+      ctx.save();
+      ctx.translate(x0, y0);
+      ctx.scale(z, z);
+      drawRoof(ctx, b.type, f.w, f.h, b.level, b.id);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
       ctx.lineWidth = 1;
       ctx.strokeRect(x0 + 0.5, y0 + 0.5, bw - 1, bh - 1);
-      if (d.isTerminal) {
-        // Façade vitrée
-        ctx.fillStyle = 'rgba(56,189,248,0.55)';
-        ctx.fillRect(x0 + bw * 0.08, y0 + bh * 0.08, bw * 0.84, Math.max(2, bh * 0.12));
-      }
+      // Pastille d'identification
       const glyph = GLYPH[b.type];
-      if (glyph && z >= 9) {
-        ctx.font = `${clamp(Math.min(bw, bh) * 0.55, 8, 34)}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      if (glyph && z >= 11 && Math.min(bw, bh) >= 22) {
+        const r = clamp(z * 0.42, 8, 15);
+        ctx.fillStyle = 'rgba(10,26,51,0.75)';
+        ctx.beginPath();
+        ctx.arc(x0 + r + 2, y0 + r + 2, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = `${r * 1.1}px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#0f172a';
-        ctx.fillText(glyph, x0 + bw / 2, y0 + bh / 2);
-      }
-      if (b.level > 1 && z >= 10) {
-        ctx.fillStyle = '#facc15';
-        for (let i = 0; i < b.level; i++) ctx.fillRect(x0 + 3 + i * 5, y0 + 3, 3, 3);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(glyph, x0 + r + 2, y0 + r + 3);
       }
       if (b.buildRemaining > 0) this.progress(P, b, z);
       if (b.brokenFor > 0 || w.problems.has(b.id)) {

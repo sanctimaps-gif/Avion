@@ -10,6 +10,7 @@ import { drawGround, FLAT, GroundCache } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from './view';
 import { drawWeather2D } from './weatherfx';
+import { drawRoof, wallColor } from './roofs';
 
 /** Vue isométrique (rotation par quarts de tour). */
 const K0 = 16;
@@ -264,6 +265,9 @@ export class ViewIso implements GameView {
     const built = b.buildRemaining <= 0;
     let hgt = d.height * (1 + 0.15 * (b.level - 1));
     if (!built) hgt *= 0.35;
+    const isTower = b.type.startsWith('tower') && built;
+    const towerTop = hgt;
+    if (isTower) hgt = 0.5; // socle ; le fût et la vigie sont dessinés ensuite
     const x0 = b.x;
     const y0 = b.y;
     const x1 = b.x + f.w;
@@ -277,7 +281,8 @@ export class ViewIso implements GameView {
       faces.push({ pts, shade: i % 2 === 0 ? 0.78 : 0.62 });
     }
     faces.sort((a, b) => (a.pts[0][1] + a.pts[1][1]) - (b.pts[0][1] + b.pts[1][1]));
-    const wall = built ? d.color : '#a3a3a3';
+    const wall = built ? wallColor(b.type) : '#b5b5b5';
+    const floors = Math.max(1, Math.round(hgt / 0.8));
     for (const fc of faces) {
       ctx.fillStyle = mix('#000000', wall, fc.shade * (0.55 + 0.45 * dl));
       ctx.beginPath();
@@ -285,45 +290,114 @@ export class ViewIso implements GameView {
       for (const p of fc.pts.slice(1)) ctx.lineTo(p[0], p[1]);
       ctx.closePath();
       ctx.fill();
-      if (d.isTerminal && built) {
-        // Bande vitrée
-        ctx.strokeStyle = `rgba(56,189,248,${0.5 + (1 - dl) * 0.4})`;
-        ctx.lineWidth = Math.max(1, k * 0.15);
-        const m1 = [(fc.pts[0][0] + fc.pts[3][0]) / 2, (fc.pts[0][1] + fc.pts[3][1]) / 2];
-        const m2 = [(fc.pts[1][0] + fc.pts[2][0]) / 2, (fc.pts[1][1] + fc.pts[2][1]) / 2];
+      if (!built || hgt < 0.5) continue;
+      // Rangées de fenêtres (vitrage continu pour les terminaux), éclairées la nuit
+      const night = 1 - dl;
+      ctx.strokeStyle = d.isTerminal ? `rgba(70,150,210,${0.85})` : night > 0.4 ? `rgba(255,214,140,${0.5 + night * 0.5})` : 'rgba(60,80,105,0.75)';
+      ctx.lineWidth = Math.max(1, k * (d.isTerminal ? 0.35 : 0.16));
+      if (!d.isTerminal) ctx.setLineDash([k * 0.22, k * 0.14]);
+      const rows = d.isTerminal ? 1 : floors;
+      for (let r = 0; r < rows; r++) {
+        const tt = d.isTerminal ? 0.5 : (r + 0.55) / floors;
+        const a = [fc.pts[0][0] + (fc.pts[3][0] - fc.pts[0][0]) * tt, fc.pts[0][1] + (fc.pts[3][1] - fc.pts[0][1]) * tt];
+        const c = [fc.pts[1][0] + (fc.pts[2][0] - fc.pts[1][0]) * tt, fc.pts[1][1] + (fc.pts[2][1] - fc.pts[1][1]) * tt];
         ctx.beginPath();
-        ctx.moveTo(m1[0], m1[1]);
-        ctx.lineTo(m2[0], m2[1]);
+        ctx.moveTo(a[0] + (c[0] - a[0]) * 0.06, a[1] + (c[1] - a[1]) * 0.06);
+        ctx.lineTo(a[0] + (c[0] - a[0]) * 0.94, a[1] + (c[1] - a[1]) * 0.94);
         ctx.stroke();
       }
+      ctx.setLineDash([]);
+      // Bandeau d'accent au pied du bâtiment
+      ctx.strokeStyle = mix('#000000', d.roof ?? d.color, 0.6 + 0.4 * dl);
+      ctx.lineWidth = Math.max(1, k * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(fc.pts[0][0], fc.pts[0][1] - k * 0.06);
+      ctx.lineTo(fc.pts[1][0], fc.pts[1][1] - k * 0.06);
+      ctx.stroke();
     }
-    // Toit
-    const roof = base.map((p) => pr(p[0], p[1], hgt));
-    ctx.fillStyle = built ? mix('#000000', d.roof ?? d.color, 0.55 + 0.45 * dl) : 'rgba(250,204,21,0.8)';
-    ctx.beginPath();
-    ctx.moveTo(roof[0][0], roof[0][1]);
-    for (const p of roof.slice(1)) ctx.lineTo(p[0], p[1]);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(15,23,42,0.35)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // Toit détaillé (transformation affine case → écran à la hauteur du toit)
+    const o = pr(x0, y0, hgt);
+    const ex = pr(x0 + 1, y0, hgt);
+    const ey = pr(x0, y0 + 1, hgt);
+    if (built) {
+      ctx.save();
+      ctx.transform(ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]);
+      drawRoof(ctx, b.type, f.w, f.h, b.level, b.id);
+      ctx.restore();
+      if (dl < 0.95) {
+        const roof = base.map((p) => pr(p[0], p[1], hgt));
+        ctx.fillStyle = `rgba(8,16,42,${(1 - dl) * 0.35})`;
+        ctx.beginPath();
+        ctx.moveTo(roof[0][0], roof[0][1]);
+        for (const p of roof.slice(1)) ctx.lineTo(p[0], p[1]);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else {
+      const roof = base.map((p) => pr(p[0], p[1], hgt));
+      ctx.fillStyle = 'rgba(250,204,21,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(roof[0][0], roof[0][1]);
+      for (const p of roof.slice(1)) ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fill();
+    }
     // Tour de contrôle : vigie vitrée
-    if (b.type.startsWith('tower') && built) {
-      const c = pr(x0 + f.w / 2, y0 + f.h / 2, hgt);
-      ctx.fillStyle = 'rgba(56,189,248,0.85)';
-      ctx.fillRect(c[0] - k * 0.6, c[1] - k * 0.9, k * 1.2, k * 0.7);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(c[0] - k * 0.7, c[1] - k * 1.05, k * 1.4, k * 0.2);
+    if (isTower) {
+      const cx = x0 + f.w / 2;
+      const cy = y0 + f.h / 2;
+      const bot = pr(cx, cy, hgt);
+      const top = pr(cx, cy, towerTop);
+      const r = k * Math.min(f.w, f.h) * 0.22;
+      // Fût effilé
+      const g = ctx.createLinearGradient(bot[0] - r, 0, bot[0] + r, 0);
+      g.addColorStop(0, mix('#000000', '#f1f5f9', 0.6 + 0.4 * dl));
+      g.addColorStop(1, mix('#000000', '#cbd5e1', 0.45 + 0.4 * dl));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(bot[0] - r, bot[1]);
+      ctx.lineTo(top[0] - r * 0.7, top[1]);
+      ctx.lineTo(top[0] + r * 0.7, top[1]);
+      ctx.lineTo(bot[0] + r, bot[1]);
+      ctx.closePath();
+      ctx.fill();
+      // Vigie : plancher, vitrage, toit, antenne
+      const cw = r * 2.6;
+      ctx.fillStyle = mix('#000000', '#e2e8f0', 0.6 + 0.4 * dl);
+      ctx.fillRect(top[0] - cw / 2, top[1] - k * 0.1, cw, k * 0.2);
+      ctx.fillStyle = dl < 0.5 ? '#ffd27a' : '#5fb2e6';
+      ctx.fillRect(top[0] - cw / 2 + 1, top[1] - k * 0.75, cw - 2, k * 0.65);
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(top[0] - cw / 2 + (cw * i) / 4, top[1] - k * 0.75);
+        ctx.lineTo(top[0] - cw / 2 + (cw * i) / 4, top[1] - k * 0.1);
+        ctx.stroke();
+      }
+      ctx.fillStyle = mix('#000000', '#f8fafc', 0.6 + 0.4 * dl);
+      ctx.fillRect(top[0] - cw / 2 - 2, top[1] - k * 0.9, cw + 4, k * 0.17);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.moveTo(top[0], top[1] - k * 0.9);
+      ctx.lineTo(top[0], top[1] - k * 1.6);
+      ctx.stroke();
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(top[0] - 1.5, top[1] - k * 1.65, 3, 3);
     }
-    const glyph = GLYPH[b.type];
     const c = pr(x0 + f.w / 2, y0 + f.h / 2, hgt);
-    if (glyph && k > 7) {
-      ctx.font = `${clamp(Math.min(f.w, f.h) * k * 0.5, 9, 30)}px system-ui, sans-serif`;
+    const glyph = GLYPH[b.type];
+    if (glyph && k > 12 && built && f.w * f.h >= 4) {
+      const r = clamp(k * 0.38, 7, 13);
+      ctx.fillStyle = 'rgba(10,26,51,0.7)';
+      ctx.beginPath();
+      ctx.arc(c[0], c[1], r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = `${r * 1.1}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#0f172a';
-      ctx.fillText(glyph, c[0], c[1]);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(glyph, c[0], c[1] + 1);
     }
     if (b.brokenFor > 0 || problem) {
       ctx.font = `${clamp(k, 10, 22)}px system-ui, sans-serif`;
