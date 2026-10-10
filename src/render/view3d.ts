@@ -21,6 +21,9 @@ const TEX_PX = 24;
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
 import { importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
 import { Environment } from './env3d';
+import { VehicleFleet, type VehicleModel } from './vehicles3d';
+import { WEATHER } from '../data/weather';
+import { activeList } from '../sim/incidents';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
 export function webglInfo(): { webgl2: boolean; renderer: string } {
@@ -44,6 +47,7 @@ export class View3D implements GameView {
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(45, 1, 0.5, 1100);
   private env = new Environment();
+  private fleet = new VehicleFleet();
   private sun = new THREE.DirectionalLight(0xffffff, 2.2);
   private hemi = new THREE.HemisphereLight(0xbfdcff, 0x3a5a2a, 1.1);
   private ground: THREE.Mesh;
@@ -118,6 +122,7 @@ export class View3D implements GameView {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
     this.scene.add(this.env.group);
+    this.scene.add(this.fleet.group);
 
     this.vehicles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.25, 0.22), new THREE.MeshStandardMaterial({ color: '#ffffff' }), 400);
     this.vehicles.count = 0;
@@ -130,7 +135,16 @@ export class View3D implements GameView {
     this.scene.add(this.selection);
     this.runwayLights = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: '#fff3c4', size: 0.35, sizeAttenuation: true, transparent: true }));
     this.scene.add(this.runwayLights);
-    this.precip = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: '#dbeafe', size: 0.12, transparent: true, opacity: 0.8 }));
+    // Flocons / gouttes ronds (texture de disque)
+    const dot = document.createElement('canvas');
+    dot.width = dot.height = 32;
+    const dg = dot.getContext('2d')!;
+    const grad = dg.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    dg.fillStyle = grad;
+    dg.fillRect(0, 0, 32, 32);
+    this.precip = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: '#dbeafe', size: 0.12, transparent: true, opacity: 0.85, map: new THREE.CanvasTexture(dot), depthWrite: false }));
     this.scene.add(this.precip);
     this.scene.fog = new THREE.Fog('#9cc7e8', 80, 400);
     // Les modèles importés arrivent de façon asynchrone : on reconstruit ensuite.
@@ -349,6 +363,9 @@ export class View3D implements GameView {
     const vis = visibleFlights(s);
     const seen = new Set<number>();
     let vi = 0;
+    const useFleet = fi.quality !== 'low' && modelsLoaded() && this.fleet.build();
+    this.fleet.group.visible = useFleet;
+    if (useFleet) this.fleet.begin();
     const m = new THREE.Matrix4();
     const col = new THREE.Color();
     for (const f of vis) {
@@ -366,13 +383,15 @@ export class View3D implements GameView {
       for (const pr of (g.userData.props ?? []) as THREE.Object3D[]) pr.rotation.z += 0.9;
       if (f.phase === 'takeoff' || f.phase === 'departed') g.rotation.z = Math.min(0.25, p.alt * 0.6);
       if (f.phase === 'inbound') g.rotation.z = -0.05;
-      for (const v of serviceVehicles(f, fi.realTime)) {
-        if (vi >= 400) break;
-        m.makeTranslation(v.x, 0.15, v.y);
-        this.vehicles.setMatrixAt(vi, m);
-        this.vehicles.setColorAt(vi, col.set(v.color));
-        vi++;
-      }
+      if (!useFleet) {
+        for (const v of serviceVehicles(f, fi.realTime)) {
+          if (vi >= 400) break;
+          m.makeTranslation(v.x, 0.15, v.y);
+          this.vehicles.setMatrixAt(vi, m);
+          this.vehicles.setColorAt(vi, col.set(v.color));
+          vi++;
+        }
+      } else this.serviceFleet(s, f, p, fi.realTime);
     }
     // Véhicules sur les routes
     const w = getWorld(s);
@@ -384,12 +403,24 @@ export class View3D implements GameView {
       if ((i * 7919) % 100 > density * 100 || vi >= 400) continue;
       const ph = (fi.realTime * 0.0008 + i * 0.37) % 1;
       const vertical = w.byId.get(w.occ[Math.max(0, b.y - 1) * s.map.w + b.x])?.type === 'road' || w.byId.get(w.occ[Math.min(s.map.h - 1, b.y + 1) * s.map.w + b.x])?.type === 'road';
-      if (vertical) m.makeTranslation(b.x + 0.35, 0.13, b.y + ph);
-      else m.makeTranslation(b.x + ph, 0.13, b.y + 0.35);
+      const x = vertical ? b.x + 0.35 : b.x + ph;
+      const z = vertical ? b.y + ph : b.y + 0.35;
+      const color = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af'][i % 6];
+      if (useFleet) {
+        this.fleet.add(i % 11 === 0 ? 'bus' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
+        continue;
+      }
+      m.makeTranslation(x, 0.13, z);
       this.vehicles.setMatrixAt(vi, m);
-      this.vehicles.setColorAt(vi, col.set(['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b'][i % 4]));
+      this.vehicles.setColorAt(vi, col.set(color));
       vi++;
     }
+    if (useFleet) {
+      this.staticFleet(s, fi.realTime);
+      for (const c of this.env.highwayPoses(fi.realTime)) this.fleet.add('voiture', c.x, c.z, c.hdg, c.color);
+      this.fleet.end();
+    }
+    this.env.boxCars = !useFleet;
     this.vehicles.count = vi;
     this.vehicles.instanceMatrix.needsUpdate = true;
     if (this.vehicles.instanceColor) this.vehicles.instanceColor.needsUpdate = true;
@@ -397,6 +428,63 @@ export class View3D implements GameView {
       if (!seen.has(id)) {
         this.scene.remove(g);
         this.planes.delete(id);
+      }
+    }
+  }
+
+  /** Véhicules de piste autour d'un avion (modèles 3D). */
+  private serviceFleet(s: GameState, f: Flight, p: { x: number; y: number; hdg: number; alt: number }, t: number): void {
+    const a = AIRCRAFT[f.aircraft];
+    if (f.phase === 'taxi_out' && f.pathPos < 2.5) {
+      // Tracteur de repoussage devant le nez
+      this.fleet.add('tracteur_repoussage', p.x + Math.cos(p.hdg) * a.length * 0.62, p.y + Math.sin(p.hdg) * a.length * 0.62, p.hdg + Math.PI);
+      return;
+    }
+    const vs = serviceVehicles(f, t);
+    const deice = s.settings.weather && WEATHER[s.weather.current.kind].needsDeicing && getWorld(s).cap.deicing > 0;
+    vs.forEach((v, i) => {
+      const hdg = Math.atan2(v.y - p.y, v.x - p.x) + Math.PI / 2;
+      let model: VehicleModel;
+      if (f.phase === 'servicing') model = i === 0 ? 'camion_citerne' : i === 1 ? 'train_bagages' : deice ? 'engin_degivrage' : 'tracteur_repoussage';
+      else model = f.contact ? 'train_bagages' : 'bus';
+      this.fleet.add(model, v.x, v.y, hdg);
+    });
+  }
+
+  /** Véhicules liés aux installations : pompiers, chasse-neige, train. */
+  private staticFleet(s: GameState, t: number): void {
+    const w = getWorld(s);
+    const incident = activeList(s).find((i) => i.type === 'aircraft_incident');
+    const snow = s.settings.weather && WEATHER[s.weather.current.kind].needsSnow && w.cap.snow > 0;
+    for (const b of s.buildings) {
+      if (!w.active.has(b.id)) continue;
+      const f = bFootprint(b);
+      if (b.type === 'fire_station') {
+        const target = incident?.targetId ? w.runways.find((r) => r.id === incident.targetId) : undefined;
+        for (let k = 0; k < 2; k++) {
+          if (target) {
+            const cx = (target.a.x + target.b.x) / 2;
+            const cz = (target.a.y + target.b.y) / 2;
+            this.fleet.add('camion_pompiers', cx + (k - 0.5) * 1.6, cz + 0.9, target.horizontal ? 0 : Math.PI / 2);
+          } else this.fleet.add('camion_pompiers', b.x + f.w / 2 + (k - 0.5) * 0.9, b.y + 0.55, -Math.PI / 2);
+        }
+      } else if (b.type === 'train_station') {
+        const along = f.w >= f.h;
+        const ph = Math.sin(t * 0.00015 + b.id) * 0.5 + 0.5;
+        const x = along ? b.x + f.w * (0.15 + 0.7 * ph) : b.x + f.w - 0.5;
+        const z = along ? b.y + f.h - 0.5 : b.y + f.h * (0.15 + 0.7 * ph);
+        this.fleet.add('train', x, z, along ? 0 : Math.PI / 2);
+      }
+    }
+    if (snow) {
+      for (const r of w.runways) {
+        for (let k = 0; k < 2; k++) {
+          const u = (Math.sin(t * 0.0002 + k * 2.1 + r.id) + 1) / 2;
+          const x = r.a.x + (r.b.x - r.a.x) * u + (r.horizontal ? 0 : (k - 0.5) * 0.8);
+          const z = r.a.y + (r.b.y - r.a.y) * u + (r.horizontal ? (k - 0.5) * 0.8 : 0);
+          const dir = Math.cos(t * 0.0002 + k * 2.1 + r.id) >= 0 ? 0 : Math.PI;
+          this.fleet.add('chasse_neige', x, z, (r.horizontal ? 0 : Math.PI / 2) + dir);
+        }
       }
     }
   }
@@ -569,6 +657,9 @@ export class View3D implements GameView {
     fog.near = 20 + 60 * vis;
     fog.far = 60 + 340 * vis;
     this.syncPrecip(s, cam, fi.quality, fi.realTime);
+    // Manteau neigeux : la texture du sol est éclaircie (multiplication de couleur).
+    const snowy = s.settings.weather && ['snow', 'blizzard'].includes(wk) ? 1 : s.settings.weather && wk === 'frost' ? 0.4 : 0;
+    this.env.setSnow(snowy);
     this.env.sync(s, w.rev, fi.quality);
     this.env.update(s, fi.realTime, dl, overcast, new THREE.Vector3(cam.cx, 0, cam.cy));
 

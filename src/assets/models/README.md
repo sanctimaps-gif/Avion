@@ -20,6 +20,23 @@ Format glTF 2.0 binaire, lisible par Three.js, Godot, Unity (via glTFast), Blend
 | avions/moyen_courrier.glb | envergure 35, long. 38 m | 1 184 |
 | avions/gros_porteur.glb | envergure 65, long. 69 m | 1 872 |
 
+### Véhicules (avant vers +Z)
+
+| Fichier | Taille approx. (l × H × L) | Nœuds animables |
+|---|---|---|
+| vehicules/voiture.glb | 1,9 × 1,5 × 4,5 m | `roues` (matériau `red` recolorable) |
+| vehicules/bus.glb | 3,0 × 3,3 × 12 m | `roues` |
+| vehicules/camion_citerne.glb | 2,6 × 3,6 × 10 m | `roues` |
+| vehicules/tracteur_repoussage.glb | 3,4 × 2,4 × 11 m (barre incluse) | `barre_remorquage`, `roues` |
+| vehicules/train_bagages.glb | 1,6 × 2,2 × 14 m | `tracteur`, `chariot_1` à `chariot_3` |
+| vehicules/camion_pompiers.glb | 3,1 × 4,0 × 11 m | `lance` (canon à mousse), `roues` |
+| vehicules/chasse_neige.glb | 4,0 × 3,2 × 12,5 m | `lame`, `roues` |
+| vehicules/engin_degivrage.glb | 2,6 × 11 × 10 m | `fleche` (pivot à la base) |
+| vehicules/train.glb | 3,0 × 4,5 × 62 m | `voiture_1` à `voiture_3` |
+
+Les éléments au sol (pistes, taxiways, routes, postes, parkings au sol,
+panneaux solaires, aires de dégivrage) sont dessinés à plat dans la scène.
+
 ## Nœuds des avions
 
 `fuselage`, `ailes`, `empennage`, `moteurs`, `train` — et pour le turbopropulseur
@@ -34,6 +51,20 @@ const props = ['helice_gauche', 'helice_droite'].map(n => gltf.scene.getObjectBy
 // dans la boucle de rendu :
 props.forEach(p => p.rotation.z += 0.6);
 ```
+
+## Scène de démo (Three.js)
+
+`scene.html` place les 9 modèles sur un aéroport : piste 09/27, taxiway B,
+aire de trafic, deux avions au contact, un turbopropulseur sur poste éloigné,
+un autre qui roule (hélices animées) et un moyen-courrier qui décolle en boucle.
+
+```bash
+python -m http.server 8000   # depuis ce dossier, puis http://localhost:8000/scene.html
+```
+
+Le placement et les animations sont dans `scene_template.html` ;
+`python build_scene.py` régénère `scene.html` (`--embed fichier.html` produit
+une version autonome avec les modèles intégrés).
 
 ## Régénérer / modifier
 

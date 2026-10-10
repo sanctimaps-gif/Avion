@@ -105,6 +105,12 @@ export class Environment {
 
     // Monde extérieur : champs, mer à l'est, autoroute au sud
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ map: fieldsTexture(), roughness: 1 }));
+    this.snowLayer = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshStandardMaterial({ color: '#f4f8fc', roughness: 0.9, transparent: true, opacity: 0, depthWrite: false }));
+    this.snowLayer.rotation.x = -Math.PI / 2;
+    this.snowLayer.position.set(W / 2, 0.012, H / 2);
+    this.snowLayer.receiveShadow = true;
+    this.snowLayer.visible = false;
+    this.dynamic.add(this.snowLayer);
     outer.rotation.x = -Math.PI / 2;
     outer.position.set(W / 2, -0.06, H / 2);
     outer.receiveShadow = true;
@@ -241,6 +247,30 @@ export class Environment {
     }
   }
 
+  private snowLayer: THREE.Mesh | null = null;
+  /** Couche de neige translucide sur tout le paysage (0 = aucune, 1 = enneigé). */
+  setSnow(k: number): void {
+    if (!this.snowLayer) return;
+    this.snowLayer.visible = k > 0;
+    (this.snowLayer.material as THREE.MeshStandardMaterial).opacity = 0.62 * k;
+  }
+
+  /** Voitures de l'autoroute en cubes (repli si les modèles ne sont pas utilisés). */
+  boxCars = true;
+
+  /** Positions des voitures sur l'autoroute (sens de circulation selon la voie). */
+  highwayPoses(t: number): { x: number; z: number; hdg: number; color: string }[] {
+    const out: { x: number; z: number; hdg: number; color: string }[] = [];
+    const span = this.mapW + 120;
+    for (let i = 0; i < 60; i++) {
+      const sp = this.carSpeeds[i] ?? 0.015;
+      let x = ((tileHash(i, 5) * span + t * Math.abs(sp)) % span) - 60;
+      if (sp < 0) x = this.mapW + 60 - (x + 60);
+      out.push({ x, z: this.mapH + 1.2 + (sp > 0 ? 0 : 1.2), hdg: sp > 0 ? 0 : Math.PI, color: ['#ef4444', '#3b82f6', '#f8fafc', '#111827', '#f59e0b', '#9ca3af'][i % 6] });
+    }
+    return out;
+  }
+
   /** Animation : nuages poussés par le vent, voitures sur l'autoroute, couleurs du ciel. */
   update(s: GameState, t: number, daylight: number, overcast: boolean, camTarget: THREE.Vector3): void {
     const wind = s.weather.current;
@@ -257,15 +287,13 @@ export class Environment {
     this.clouds.visible = !['fog', 'blizzard'].includes(wind.kind);
     const m = new THREE.Matrix4();
     const col = new THREE.Color();
-    const span = this.mapW + 120;
-    for (let i = 0; i < 60; i++) {
-      const sp = this.carSpeeds[i] ?? 0.015;
-      let x = ((tileHash(i, 5) * span + t * sp) % span + span) % span - 60;
-      if (sp < 0) x = this.mapW + 60 - (x + 60);
-      m.makeTranslation(x, 0.12, this.mapH + 1.2 + (sp > 0 ? 0 : 1.2));
+    const poses = this.highwayPoses(t);
+    poses.forEach((c, i) => {
+      m.makeTranslation(c.x, 0.12, c.z);
       this.highwayCars.setMatrixAt(i, m);
-      this.highwayCars.setColorAt(i, col.set(['#ef4444', '#3b82f6', '#f8fafc', '#111827', '#f59e0b', '#9ca3af'][i % 6]));
-    }
+      this.highwayCars.setColorAt(i, col.set(c.color));
+    });
+    this.highwayCars.count = this.boxCars ? poses.length : 0;
     this.highwayCars.instanceMatrix.needsUpdate = true;
     if (this.highwayCars.instanceColor) this.highwayCars.instanceColor.needsUpdate = true;
     // Ciel

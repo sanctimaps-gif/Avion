@@ -9,6 +9,15 @@ import hotelUrl from '../assets/models/hotel.glb?inline';
 import propUrl from '../assets/models/turbopropulseur.glb?inline';
 import mediumUrl from '../assets/models/moyen_courrier.glb?inline';
 import heavyUrl from '../assets/models/gros_porteur.glb?inline';
+import carUrl from '../assets/models/vehicules/voiture.glb?inline';
+import busUrl from '../assets/models/vehicules/bus.glb?inline';
+import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?inline';
+import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?inline';
+import bagUrl from '../assets/models/vehicules/train_bagages.glb?inline';
+import fireTruckUrl from '../assets/models/vehicules/camion_pompiers.glb?inline';
+import plowUrl from '../assets/models/vehicules/chasse_neige.glb?inline';
+import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?inline';
+import trainUrl from '../assets/models/vehicules/train.glb?inline';
 import { nightMats } from './models3d';
 
 /**
@@ -26,7 +35,55 @@ const SOURCES: Record<string, string> = {
   turbopropulseur: propUrl,
   moyen_courrier: mediumUrl,
   gros_porteur: heavyUrl,
+  voiture: carUrl,
+  bus: busUrl,
+  camion_citerne: fuelUrl,
+  tracteur_repoussage: tugUrl,
+  train_bagages: bagUrl,
+  camion_pompiers: fireTruckUrl,
+  chasse_neige: plowUrl,
+  engin_degivrage: deicerUrl,
+  train: trainUrl,
 };
+
+/** Échelle des véhicules : 1 case ≈ 8 m (légèrement exagérée pour rester lisible à côté des avions). */
+export const METERS_PER_TILE = 8;
+
+export interface VehiclePart {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  /** Transformation de la pièce dans le repère du véhicule (déjà à l'échelle du jeu). */
+  matrix: THREE.Matrix4;
+  /** Pièce recolorable (carrosserie). */
+  tint: boolean;
+}
+
+/**
+ * Pièces d'un véhicule pour l'instanciation : une géométrie partagée par
+ * pièce, posée au sol, avant vers +Z, à l'échelle du jeu.
+ */
+export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[] | null {
+  const t = templates.get(name);
+  if (!t) return null;
+  const root = t.obj;
+  root.updateMatrixWorld(true);
+  const s = 1 / METERS_PER_TILE;
+  const base = new THREE.Matrix4().makeScale(s, s, s).multiply(new THREE.Matrix4().makeTranslation(0, -t.box.min.y, 0));
+  const parts: VehiclePart[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    let material = m.material as THREE.Material;
+    const tint = !!tintMaterial && material.name === tintMaterial;
+    if (tint) {
+      // Base blanche : la couleur de chaque instance est appliquée par multiplication.
+      material = (material as THREE.MeshStandardMaterial).clone();
+      (material as THREE.MeshStandardMaterial).color.set('#ffffff');
+    }
+    parts.push({ geometry: m.geometry, material, matrix: base.clone().multiply(m.matrixWorld), tint });
+  });
+  return parts;
+}
 
 /** Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z)]. */
 const BUILDING_MODELS: Record<string, [string, number]> = {

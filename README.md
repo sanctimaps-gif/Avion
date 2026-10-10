@@ -49,6 +49,10 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
 - Modèles 3D importés (`src/assets/models/*.glb`, intégrés au fichier unique) : terminal, tour, hangar,
   caserne, parking, hôtel, turbopropulseur (hélices animées), moyen-courrier, gros-porteur (couleurs
   de la compagnie). Les autres bâtiments utilisent des modèles procéduraux.
+- Véhicules 3D instanciés (`src/assets/models/vehicules/`, allégés par `scripts/lowpoly_vehicles.py`) :
+  voitures et bus sur les routes et l'autoroute, camion-citerne, train de bagages, bus de piste,
+  tracteur de repoussage, engin de dégivrage, camions de pompiers (sur la piste en cas d'incident),
+  chasse-neige sur les pistes enneigées, train en gare. Qualité « Faible » : cubes simples.
 - Simulation unique minute par minute, déterministe (même sauvegarde ⇒ mêmes événements).
 - 4 vues sur la même simulation : 2D, 3D réaliste (ombres, cycle jour/nuit, brouillard, pluie/neige,
   fenêtres éclairées la nuit), isométrique (rotation par quarts de tour), hybride (8 couches : trafic,

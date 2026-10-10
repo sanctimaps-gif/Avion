@@ -125,6 +125,28 @@ class Model:
         return pts.min(0), pts.max(0)
 
 
+CREASE_DEG = 42   # au-delà de cet angle entre faces, l'arête reste vive
+
+
+def smooth_normals(T, crease_deg=CREASE_DEG):
+    """Normales lissées par sommet, en gardant vives les arêtes marquées."""
+    raw = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
+    unit = raw / np.linalg.norm(raw, axis=1, keepdims=True)
+    keys = [tuple(k) for k in np.round(T.reshape(-1, 3) * 1e4).astype(np.int64)]
+    groups = {}
+    for vi, k in enumerate(keys):
+        groups.setdefault(k, []).append(vi // 3)
+    cosc = math.cos(math.radians(crease_deg))
+    out = np.empty((len(keys), 3))
+    for vi, k in enumerate(keys):
+        f = vi // 3
+        faces = groups[k]
+        mask = unit[faces] @ unit[f] > cosc
+        n = raw[faces][mask].sum(0)
+        out[vi] = n / (np.linalg.norm(n) or 1)
+    return out
+
+
 def export_glb(model, path):
     binbuf = bytearray()
     views, accs, meshes, nodes, mats, matidx = [], [], [], [], [], {}
@@ -156,10 +178,8 @@ def export_glb(model, path):
                     "baseColorFactor": [*rgb, 1.0], "metallicFactor": met,
                     "roughnessFactor": rough}})
             T = np.array(tris, float) - p["origin"]
-            n = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
-            n /= np.linalg.norm(n, axis=1, keepdims=True)
             pos = T.reshape(-1, 3).astype(np.float32)
-            nor = np.repeat(n, 3, axis=0).astype(np.float32)
+            nor = smooth_normals(T).astype(np.float32)
             prims.append({"attributes": {"POSITION": acc(pos, True),
                                          "NORMAL": acc(nor, False)},
                           "material": matidx[color]})
@@ -461,6 +481,509 @@ def wide_body():
                gear_cfg=(0, 3.1, [3.0, 5.6], -4.8, 3.6, .65), upper_deck=True)
 
 
+# ================================================================ VÉHICULES
+# Avant vers +Z, origine au sol. Chaque carrosserie est définie par ses profils
+# réels (vue de côté : dessus et dessous ; vue de dessus : demi-largeur),
+# interpolés par des courbes, avec passages de roues découpés.
+
+import bisect
+
+
+def cr(ctrl, z):
+    """Courbe d'interpolation (Hermite / Catmull-Rom non uniforme) sur [(z, v), ...]."""
+    zs = [c[0] for c in ctrl]; vs = [c[1] for c in ctrl]; n = len(zs)
+    if z <= zs[0]:
+        return vs[0]
+    if z >= zs[-1]:
+        return vs[-1]
+    i = bisect.bisect_right(zs, z) - 1
+    h = zs[i + 1] - zs[i]
+    t = (z - zs[i]) / h
+    p1, p2 = vs[i], vs[i + 1]
+    m1 = (p2 - vs[i - 1]) / (zs[i + 1] - zs[i - 1]) * h if i > 0 else p2 - p1
+    m2 = (vs[i + 2] - p1) / (zs[i + 2] - zs[i]) * h if i + 2 < n else p2 - p1
+    t2, t3 = t * t, t * t * t
+    return (2 * t3 - 3 * t2 + 1) * p1 + (t3 - 2 * t2 + t) * m1 + (-2 * t3 + 3 * t2) * p2 + (t3 - t2) * m2
+
+
+def se_ring(z, hw, yb, yt, p=4.0, n=18, taper=0.0, ref=None):
+    """Section en super-ellipse ; taper resserre le haut (retrait de caisse)."""
+    hh, yc = (yt - yb) / 2, (yt + yb) / 2
+    pts = []
+    for i in range(n):
+        a = 2 * math.pi * (i + .5) / n
+        c, s = math.cos(a), math.sin(a)
+        pts.append([hw * math.copysign(abs(c) ** (2 / p), c),
+                    yc + hh * math.copysign(abs(s) ** (2 / p), s), z])
+    pts = np.array(pts)
+    if taper:
+        rb, rt = ref if ref else (yb, yt)
+        f = np.clip((pts[:, 1] - rb) / max(rt - rb, 1e-3), 0, 1)
+        pts[:, 0] *= 1 - taper * f
+    return pts
+
+
+def spline_body(z0, z1, top, bot, hw, arches=(), p=4.0, taper=0.0, n=18, dz=.1,
+                yclip=None, off=0.0, push=(False, False), dtop=0.0, dbot=0.0, R=None, t=(0, 0, 0)):
+    """Volume défini par profils. yclip/off/push servent aux bandes (vitres, liserés)
+    qui épousent la carrosserie en étant légèrement gonflées."""
+    zs = set(np.linspace(z0, z1, max(2, int(math.ceil((z1 - z0) / dz)) + 1)).tolist())
+    for ctrl in (top, bot, hw):
+        zs |= {c[0] for c in ctrl if z0 < c[0] < z1}
+    for zw, ra, _ in arches:
+        for a in np.linspace(0, math.pi, 11):
+            zz = zw + ra * .999 * math.cos(a)
+            if z0 < zz < z1:
+                zs.add(zz)
+    rings = []
+    for z in sorted(zs):
+        b0, tp, w = cr(bot, z) + dbot, cr(top, z) + dtop, cr(hw, z)
+        b = b0
+        for zw, ra, cy in arches:
+            if abs(z - zw) < ra:
+                b = max(b, cy + math.sqrt(ra * ra - (z - zw) ** 2))
+        yb, yt = b - off, tp + off
+        if yclip:
+            yb, yt = max(yb, yclip[0]), min(yt, yclip[1])
+        if yt - yb < .02:
+            continue
+        rings.append(se_ring(z, w + off, yb, yt, p, n, taper, (b0, tp)))
+    if push[0]:
+        rings[0] = rings[0] - [0, 0, off]
+    if push[1]:
+        rings[-1] = rings[-1] + [0, 0, off]
+    if R is not None:
+        rings = [r @ R.T for r in rings]
+    return loft([r + np.asarray(t, float) for r in rings])
+
+
+def side_x(hw_ctrl, top, bot, z, y, taper, p=4.0):
+    """Abscisse de la paroi latérale à (z, y), pour y poser portes et panneaux."""
+    w, b, tp = cr(hw_ctrl, z), cr(bot, z), cr(top, z)
+    s = (y - (b + tp) / 2) / ((tp - b) / 2)
+    x = w * max(0.0, 1 - abs(s) ** p) ** (1 / p)
+    return x * (1 - taper * min(max((y - b) / (tp - b), 0), 1))
+
+
+def blob(center, rx, ry, rz, n=12):
+    """Ellipsoïde (phares, gyrophares, rétroviseurs...)."""
+    cx, cy, cz = center
+    st = [(cz + rz * math.sin(a), rx * math.cos(a), cy - ry * math.cos(a), cy + ry * math.cos(a))
+          for a in np.linspace(-math.pi / 2 + .25, math.pi / 2 - .25, 7)]
+    rings = [se_ring(z, w, yb, yt, 2.0, n) + [cx, 0, 0] for z, w, yb, yt in st]
+    return loft(rings)
+
+
+def rod(p0, p1, r, n=8):
+    return cyl(p0, p1, r, n=n)
+
+
+_AX = {"x": ((1, 0, 0), (0, 0, 1), (0, 1, 0)),
+       "z": ((0, 0, 1), (1, 0, 0), (0, 1, 0)),
+       "y": ((0, 1, 0), (1, 0, 0), (0, 0, 1))}
+
+
+def _rr_ring(c, u, v, hu, hv, r, nc=3):
+    r = min(r, hu * .99, hv * .99)
+    pts = []
+    for su, sv, a0 in ((1, 1, 0), (-1, 1, math.pi / 2), (-1, -1, math.pi), (1, -1, 1.5 * math.pi)):
+        cu, cv = su * (hu - r), sv * (hv - r)
+        for j in range(nc + 1):
+            a = a0 + j * (math.pi / 2) / nc
+            pts.append(c + (cu + r * math.cos(a)) * u + (cv + r * math.sin(a)) * v)
+    return np.array(pts)
+
+
+def pad(center, axis, sign, hu, hv, r, th=.05):
+    """Plaque à coins arrondis posée sur une face (portes, calandres, coffres)."""
+    nrm, u, v = (np.array(a, float) for a in _AX[axis])
+    c = np.asarray(center, float) - sign * .01 * nrm
+    return loft([_rr_ring(c, u, v, hu, hv, r), _rr_ring(c + sign * (th + .01) * nrm, u, v, hu, hv, r)])
+
+
+def curved_plate(pts_yz, th, half_w, R=None, t=(0, 0, 0)):
+    """Plaque cintrée (lame de chasse-neige) : tranches convexes successives."""
+    out = []
+    for (y0, z0), (y1, z1) in zip(pts_yz[:-1], pts_yz[1:]):
+        quad = [(y0, z0), (y1, z1), (y1, z1 - th), (y0, z0 - th)]
+        rings = [np.array([[x, y, z] for y, z in quad]) for x in (-half_w, half_w)]
+        if R is not None:
+            rings = [r @ R.T for r in rings]
+        out += loft([r + np.asarray(t, float) for r in rings])
+    return out
+
+
+def tyre(m, x, z, r, w, part="roues", hub="metal"):
+    rings = [ring((x + dx, r, z), (1, 0, 0), rr, 14)
+             for dx, rr in ((-w / 2, .8 * r), (-w * .32, r), (w * .32, r), (w / 2, .8 * r))]
+    m.add(loft(rings), "rubber", part)
+    s = 1 if x > 0 else -1
+    m.add(cyl((x + s * (w / 2 - .02), r, z), (x + s * (w / 2 + .025), r, z), r * .52, n=14), hub, part)
+
+
+def tyres(m, xs, zs, r, w, part="roues"):
+    for x in xs:
+        for z in zs:
+            tyre(m, x, z, r, w, part)
+
+
+def pair(m, fn, color, part):
+    for s in (-1, 1):
+        m.add(fn(s), color, part)
+
+
+# ---------------------------------------------------------------- voiture
+def car():
+    """Compacte 5 portes : 4,30 × 1,79 × 1,46 m, empattement 2,63 m."""
+    m = Model("voiture"); C = "carrosserie"
+    WZ, R = (1.33, -1.30), .32
+    hw = [(-2.15, .64), (-2.05, .81), (-1.75, .885), (-1.0, .895), (1.0, .895), (1.75, .87), (2.05, .78), (2.15, .6)]
+    belt = [(-2.15, .6), (-2.1, .8), (-1.95, .92), (-1.6, .97), (-.4, .98), (.7, .96), (1.05, .92),
+            (1.6, .84), (1.95, .76), (2.12, .66), (2.15, .55)]
+    bot = [(-2.15, .45), (-2.05, .28), (-1.75, .18), (1.75, .18), (2.05, .26), (2.15, .42)]
+    arches = [(z, .41, R) for z in WZ]
+    m.add(spline_body(-2.15, 2.15, belt, bot, hw, arches, p=3.4, taper=.05, dz=.12, n=16), "red", C)
+    # habitacle vitré : pare-brise incliné, pavillon bombé, hayon
+    roof = [(-1.99, .95), (-1.92, 1.2), (-1.72, 1.37), (-1.2, 1.45), (-.3, 1.47), (.15, 1.43),
+            (.55, 1.25), (1.03, .94)]
+    gbot = [(-2.0, .86), (1.05, .86)]
+    ghw = [(-2.0, .78), (-1.6, .84), (.6, .84), (1.05, .82)]
+    m.add(spline_body(-1.99, 1.03, roof, gbot, ghw, p=3.0, taper=.3, dz=.07), "glass_d", C)
+    m.add(spline_body(-1.78, .3, roof, roof, [(-2, .64), (1, .64)], p=2.6, dtop=.018, dbot=-.08, dz=.07), "red", C)
+    for z0, z1 in ((-.47, -.33), (-2.0, -1.72)):                      # montants B et C
+        m.add(spline_body(z0, z1, roof, gbot, ghw, p=3.0, taper=.3, off=.012, dz=.07), "red", C)
+    for s in (-1, 1):
+        m.add(blob((s * .6, .7, 2.0), .22, .07, .14), "yellow", C)            # phares
+        m.add(blob((s * .64, .86, -2.06), .2, .06, .1), "red", C)              # feux
+        m.add(blob((s * .9, .98, .82), .12, .06, .08), "red", C)               # rétros
+        m.add(blob((s * .78, .9, -2.07), .14, .05, .06), "red", C)
+    m.add(blob((0, .47, 2.08), .48, .1, .08), "metal_d", C)                    # calandre
+    m.add(blob((0, .3, -2.1), .55, .06, .06), "metal_d", C)
+    tyres(m, (-.77, .77), WZ, R, .22)
+    return m
+
+
+# ---------------------------------------------------------------- bus de piste
+def bus():
+    """Bus de piste type Cobus 3000 : 14 × 3 × 3 m, plancher bas, vitré tout autour."""
+    m = Model("bus"); C = "carrosserie"
+    WZ, R = (3.6, -4.3), .45
+    top = [(-6.5, 2.55), (-6.4, 2.88), (-6.0, 3.02), (5.8, 3.02), (6.3, 2.9), (6.5, 2.6)]
+    bot = [(-6.5, .6), (-6.35, .32), (6.35, .32), (6.5, .6)]
+    hw = [(-6.5, 1.3), (-6.3, 1.48), (6.1, 1.5), (6.42, 1.42), (6.5, 1.25)]
+    arches = [(z, .58, R) for z in WZ]
+    kw = dict(p=6, taper=.05, dz=.6, n=16)
+    m.add(spline_body(-6.5, 6.5, top, bot, hw, arches, **kw), "white", C)
+    m.add(spline_body(-6.38, 6.5, top, bot, hw, arches, yclip=(.95, 2.72), off=.015, push=(False, True), **kw), "glass_d", C)
+    m.add(spline_body(-6.5, 6.5, top, bot, hw, arches, yclip=(.3, .9), off=.018, push=(True, True), **kw), "blue", C)
+    m.add(spline_body(-4.0, 2.6, [(-4, 3.3), (-3.7, 3.42), (2.3, 3.42), (2.6, 3.3)], [(-4, 2.95), (2.6, 2.95)],
+                      [(-4, .8), (-3.7, .95), (2.3, .95), (2.6, .8)], p=3, dz=.3), "metal", C)   # climatisation
+    for z in (4.75, 1.0, -2.6):                                            # portes doubles, deux côtés
+        for s in (-1, 1):
+            x = s * (side_x(hw, top, bot, z, 1.55, .05) + .016)
+            m.add(pad((x, 1.6, z), "x", s, .72, 1.25, .12, th=.035), "metal_d", C)
+            m.add(pad((x + s * .035, 1.65, z), "x", s, .6, 1.1, .08, th=.02), "glass", C)
+            m.add(pad((x + s * .035, 1.65, z), "x", s, .02, 1.1, .01, th=.03), "metal_d", C)
+    for s in (-1, 1):
+        m.add(blob((s * 1.05, .72, 6.47), .2, .08, .06), "yellow", C)
+        m.add(blob((s * 1.1, .8, -6.47), .15, .08, .05), "red", C)
+        m.add(blob((s * 1.6, 2.5, 6.2), .08, .2, .1), "metal_d", C)            # rétros
+    tyres(m, (-1.18, 1.18), WZ, R, .38)
+    return m
+
+
+# ---------------------------------------------------------------- cabine avancée commune
+def cabover(m, color, zf=5.0, part="carrosserie"):
+    zb = zf - 2.4
+    top = [(zb, 2.85), (zb + .12, 3.08), (zf - .5, 3.12), (zf - .15, 2.98), (zf, 2.6)]
+    bot = [(zb, .8), (zf - .1, .8), (zf, .95)]
+    hw = [(zb, 1.2), (zb + .1, 1.25), (zf - .2, 1.25), (zf, 1.12)]
+    arches = [(zf - .95, .62, .52)]
+    kw = dict(p=5, taper=.06, dz=.12)
+    m.add(spline_body(zb, zf, top, bot, hw, arches, **kw), color, part)
+    m.add(spline_body(zf - 1.0, zf, top, bot, hw, arches, yclip=(1.85, 2.9), off=.015, push=(False, True), **kw),
+          "glass_d", part)                                                  # pare-brise + vitres de portes
+    m.add(spline_body(zf - .35, zf, top, bot, hw, arches, yclip=(.78, 1.08), off=.03, push=(False, True), **kw),
+          "metal_d", part)                                                  # pare-chocs
+    m.add(pad((0, 1.45, zf), "z", 1, .75, .28, .08, th=.03), "metal_d", part)    # calandre
+    for s in (-1, 1):
+        m.add(blob((s * .9, 1.28, zf + .01), .18, .08, .04), "yellow", part)
+        m.add(rod((s * 1.2, 2.5, zf - .35), (s * 1.45, 2.55, zf - .25), .03), "metal", part)
+        m.add(blob((s * 1.48, 2.35, zf - .25), .06, .22, .1), "metal_d", part)
+    m.add(blob((0, 3.17, zf - .7), .4, .1, .14), "orange", part)               # gyrophare
+    return zb
+
+
+# ---------------------------------------------------------------- camion-citerne
+def fuel_truck():
+    """Avitailleur 6×4 : cabine avancée, citerne ovale 20 000 L, armoire de pompage arrière."""
+    m = Model("camion_citerne"); C = "citerne"
+    cabover(m, "white")
+    m.add(boxmm(-1.0, .62, -5.0, 1.0, 1.0, 2.7), "metal_d", "carrosserie")
+    top = [(-4.4, 2.2), (-4.25, 2.65), (-3.9, 2.88), (2.0, 2.88), (2.3, 2.65), (2.4, 2.2)]
+    bot = [(-4.4, 1.6), (-4.25, 1.3), (-3.9, 1.12), (2.0, 1.12), (2.3, 1.3), (2.4, 1.6)]
+    hw = [(-4.4, .9), (-4.25, 1.12), (-3.9, 1.22), (2.0, 1.22), (2.3, 1.12), (2.4, .9)]
+    kw = dict(p=2.6, dz=.25)
+    m.add(spline_body(-4.4, 2.4, top, bot, hw, **kw), "white", C)
+    m.add(spline_body(-4.3, 2.3, top, bot, hw, yclip=(1.85, 2.12), off=.015, **kw), "red", C)
+    for x in (-.45, .45):                                                     # garde-corps
+        m.add(rod((x, 3.25, -3.6), (x, 3.25, 1.6), .03), "metal", C)
+        for z in (-3.6, -1.0, 1.6):
+            m.add(rod((x, 2.86, z), (x, 3.25, z), .025), "metal", C)
+    m.add(spline_body(-5.15, -4.35, [(-5.15, 2.35), (-5.05, 2.45), (-4.45, 2.45), (-4.35, 2.35)],
+                      [(-5.15, .75), (-4.35, .75)], [(-5.15, 1.15), (-5.05, 1.22), (-4.45, 1.22), (-4.35, 1.15)],
+                      p=8, dz=.2), "metal", C)                                # armoire de pompage
+    for s in (-1, 1):
+        m.add(pad((s * 1.22, 1.6, -4.75), "x", s, .32, .7, .05, th=.02), "metal_d", C)
+    m.add(cyl((0, 1.6, -5.18), (0, 1.6, -5.25), .45, n=14), "rubber", C)      # enrouleur
+    for x in (-.3, .3):                                                       # échelle
+        m.add(rod((x, .9, -5.2), (x, 2.8, -4.6), .025), "metal", C)
+    for k in range(5):
+        y = 1.1 + k * .35; z = -5.2 + (y - .9) / 1.9 * .6
+        m.add(rod((-.3, y, z), (.3, y, z), .02), "metal", C)
+    tyres(m, (-1.0, 1.0), (4.05, -2.5, -3.75), .52, .42)
+    return m
+
+
+# ---------------------------------------------------------------- tracteur de repoussage
+def pushback_tug():
+    """Tracteur conventionnel à barre : 6,2 × 2,6 m, très bas, cabine centrale."""
+    m = Model("tracteur_repoussage"); C = "carrosserie"
+    WZ, R = (2.0, -2.0), .55
+    top = [(-3.1, .9), (-2.95, 1.2), (-2.6, 1.32), (2.6, 1.32), (2.95, 1.2), (3.1, .9)]
+    bot = [(-3.1, .58), (-2.9, .35), (2.9, .35), (3.1, .58)]
+    hw = [(-3.1, 1.2), (-2.9, 1.3), (2.9, 1.3), (3.1, 1.2)]
+    arches = [(z, .68, R) for z in WZ]
+    kw = dict(p=6, taper=.04, dz=.12)
+    m.add(spline_body(-3.1, 3.1, top, bot, hw, arches, **kw), "yellow", C)
+    for zz, push in (((2.72, 3.1), (False, True)), ((-3.1, -2.72), (True, False))):
+        m.add(spline_body(*zz, top, bot, hw, arches, yclip=(.5, .98), off=.05, push=push, **kw), "rubber", C)
+    m.add(spline_body(-3.0, 3.0, top, bot, hw, arches, yclip=(1.05, 1.15), off=.012, **kw), "metal_d", C)
+    roof = [(-.7, 1.3), (-.6, 1.95), (-.35, 2.12), (.6, 2.12), (.9, 1.92), (1.0, 1.3)]
+    gb, gw = [(-.7, 1.28), (1.0, 1.28)], [(-.7, .66), (-.6, .7), (.9, .7), (1.0, .66)]
+    m.add(spline_body(-.7, 1.0, roof, gb, gw, p=3.5, taper=.15, dz=.06), "glass_d", C)
+    m.add(spline_body(-.55, .85, roof, roof, [(-1, .6), (1, .6)], p=3, dtop=.02, dbot=-.06, dz=.06), "yellow", C)
+    m.add(spline_body(-.05, .05, roof, gb, gw, p=3.5, taper=.15, off=.012, dz=.05), "yellow", C)
+    m.add(blob((0, 2.2, .1), .14, .09, .14), "orange", C)
+    for s in (-1, 1):
+        m.add(blob((s * .95, 1.0, 3.12), .16, .07, .04), "yellow", C)
+    m.add(rod((0, .55, 3.15), (0, .55, 7.2), .09, n=10), "metal", "barre_remorquage")
+    m.parts["barre_remorquage"]["origin"] = np.array([0, .55, 3.15])
+    m.add(blob((0, .55, 7.35), .3, .12, .18), "yellow", "barre_remorquage")
+    tyres(m, (-1.0, 1.0), WZ, R, .5)
+    return m
+
+
+# ---------------------------------------------------------------- train de bagages
+def baggage_train():
+    """Tracteur à bagages électrique + 3 chariots bâchés."""
+    m = Model("train_bagages"); T = "tracteur"
+    top = [(-1.4, .8), (-1.3, .95), (-.2, .98), (.3, 1.0), (1.1, .95), (1.35, .8), (1.4, .6)]
+    bot = [(-1.4, .4), (-1.3, .25), (1.3, .25), (1.4, .4)]
+    hw = [(-1.4, .65), (-1.3, .72), (1.3, .72), (1.4, .62)]
+    arches = [(z, .38, .3) for z in (.9, -.9)]
+    m.add(spline_body(-1.4, 1.4, top, bot, hw, arches, p=4, taper=.08, dz=.07), "orange", T)
+    m.parts[T]["origin"] = np.zeros(3)
+    m.add(spline_body(-1.2, -.25, [(-1.2, 1.1), (-.25, 1.1)], [(-1.2, .95), (-.25, .95)],
+                      [(-1.2, .4), (-1.1, .45), (-.35, .45), (-.25, .4)], p=3, dz=.1), "metal_d", T)  # siège
+    m.add(spline_body(-1.22, -1.05, [(-1.22, 1.75), (-1.05, 1.75)], [(-1.22, 1.05), (-1.05, 1.05)],
+                      [(-1.22, .42), (-1.05, .42)], p=3, dz=.1), "metal_d", T)
+    m.add(rod((0, 1.0, .2), (0, 1.4, -.1), .03), "metal_d", T)               # colonne de direction
+    m.add(cyl((0, 1.43, -.13), (0, 1.47, -.17), .18, n=12), "rubber", T)
+    for x in (-.66, .66):
+        m.add(rod((x, .95, -1.3), (x, 2.08, -1.3), .035), "metal", T)
+        m.add(rod((x, 1.0, .55), (x, 2.08, .2), .035), "metal", T)
+    m.add(pad((0, 2.08, -.55), "y", 1, .78, .95, .2, th=.07), "orange", T)
+    for s in (-1, 1):
+        m.add(blob((s * .48, .82, 1.33), .1, .06, .05), "yellow", T)
+    tyres(m, (-.63, .63), (.9, -.9), .3, .22, T)
+
+    cols = ["blue", "green", "red", "navy", "orange"]
+    z = -1.4
+    for k in range(1, 4):
+        part = f"chariot_{k}"
+        zc = z - 1.0 - 1.45
+        m.add(rod((0, .42, z - .05), (0, .42, zc + 1.45), .045), "metal", part)
+        m.parts[part]["origin"] = np.array([0, 0, zc])
+        m.add(spline_body(zc - 1.45, zc + 1.45, [(zc - 1.45, .64), (zc + 1.45, .64)], [(zc - 1.45, .44), (zc + 1.45, .44)],
+                          [(zc - 1.45, .76), (zc - 1.35, .8), (zc + 1.35, .8), (zc + 1.45, .76)], p=8, dz=.5), "metal_d", part)
+        for i, bz in enumerate((-.85, 0, .85)):                               # valises
+            for j, (bx, h) in enumerate(((-.3, .55), (.33, .45))):
+                c = zc + bz + (.05 if j else 0)
+                m.add(spline_body(c - .28, c + .28, [(c - .28, .64 + h), (c + .28, .64 + h)], [(c - .28, .64), (c + .28, .64)],
+                                  [(c - .28, .25), (c + .28, .25)], p=5, n=12, dz=.56, t=(bx, 0, 0)), cols[(i + j * 2 + k) % 5], part)
+        for x in (-.76, .76):
+            for zz in (zc - 1.38, zc + 1.38):
+                m.add(rod((x, .64, zz), (x, 1.9, zz), .035), "metal", part)
+            m.add(rod((x, 1.85, zc - 1.38), (x, 1.85, zc + 1.38), .07, n=10), cols[(k + 3) % 5], part)  # bâche roulée
+        m.add(pad((0, 1.9, zc), "y", 1, .84, 1.46, .25, th=.08), "white", part)
+        tyres(m, (-.7, .7), (zc - 1.0, zc + 1.0), .22, .16, part)
+        z = zc - 1.45
+    return m
+
+
+# ---------------------------------------------------------------- véhicule incendie aéroport
+def fire_truck():
+    """Véhicule incendie aéroport 6×6 (type Panther) : 12 × 3 × 3,5 m, cabine à pare-brise très incliné."""
+    m = Model("camion_pompiers"); C = "carrosserie"
+    WZ, R = (3.9, -2.05, -3.75), .68
+    top = [(-6.0, 2.9), (-5.85, 3.32), (-5.4, 3.45), (3.0, 3.45), (3.6, 3.4), (4.4, 3.0), (5.3, 2.15), (5.8, 1.5), (6.0, 1.05)]
+    bot = [(-6.0, .9), (-5.8, .62), (5.6, .62), (6.0, .85)]
+    hw = [(-6.0, 1.38), (-5.8, 1.5), (4.8, 1.5), (5.8, 1.4), (6.0, 1.25)]
+    arches = [(z, .82, R) for z in WZ]
+    kw = dict(p=6, taper=.04, dz=.5, n=16)
+    m.add(spline_body(-6.0, 6.0, top, bot, hw, arches, **kw), "red", C)
+    m.add(spline_body(3.0, 6.0, top, bot, hw, arches, yclip=(2.0, 3.12), off=.02, push=(False, True), **kw), "glass_d", C)
+    m.add(spline_body(-6.0, 6.0, top, bot, hw, arches, yclip=(1.28, 1.5), off=.016, push=(True, True), **kw), "white", C)
+    m.add(spline_body(2.9, 3.05, top, bot, hw, arches, yclip=(1.6, 3.3), off=.02, **kw), "metal_d", C)  # joint cabine
+    for z in (-4.9, -3.3, -1.7, -.1, 1.5):                                    # coffres à rideaux
+        for s in (-1, 1):
+            x = s * side_x(hw, top, bot, z, 2.35, .04, 6)
+            m.add(pad((x, 2.35, z), "x", s, .7, .8, .08, th=.03), "metal", C)
+            for y in np.arange(1.8, 3.1, .35):
+                m.add(pad((x + s * .03, y, z), "x", s, .66, .015, .01, th=.01), "metal_d", C)
+    for s in (-1, 1):
+        m.add(blob((s * .62, 3.5, 3.55), .32, .1, .13), "blue", C)              # rampe de feux
+        m.add(blob((s * 1.05, 1.1, 5.95), .2, .1, .05), "yellow", C)
+        m.add(rod((s * 1.45, 2.8, 4.5), (s * 1.75, 2.85, 4.6), .035), "metal", C)
+        m.add(blob((s * 1.78, 2.6, 4.6), .07, .25, .12), "metal_d", C)
+    m.add(blob((0, .95, 6.05), .22, .14, .15), "yellow", C)                     # lance de pare-chocs
+    m.add(cyl((0, 3.42, 2.4), (0, 3.75, 2.4), .32, .26, n=14), "metal", "lance")
+    m.parts["lance"]["origin"] = np.array([0, 3.55, 2.4])
+    m.add(cyl((0, 3.72, 2.25), (0, 3.98, 3.9), .13, .08, n=12), "yellow", "lance")
+    tyres(m, (-1.25, 1.25), WZ, R, .55)
+    return m
+
+
+# ---------------------------------------------------------------- chasse-neige
+def snowplow():
+    """Chasse-neige de piste : cabine avancée, benne à fondants, lame biaise cintrée de 5 m."""
+    m = Model("chasse_neige")
+    cabover(m, "orange")
+    m.add(boxmm(-1.0, .62, -4.8, 1.0, 1.0, 2.7), "metal_d", "carrosserie")
+    top = [(-4.6, 2.55), (-4.5, 2.72), (2.2, 2.72), (2.3, 2.55)]
+    bot = [(-4.6, 1.1), (2.3, 1.1)]
+    hw = [(-4.6, 1.1), (-4.5, 1.15), (2.2, 1.15), (2.3, 1.1)]
+    m.add(spline_body(-4.6, 2.3, top, bot, hw, p=8, taper=-.12, dz=.4), "yellow", "carrosserie")
+    m.add(spline_body(-5.1, -4.55, [(-5.1, .95), (-4.55, .95)], [(-5.1, .4), (-4.55, .4)],
+                      [(-5.1, .4), (-4.55, .4)], p=2.5, n=14, dz=.25), "metal", "carrosserie")  # épandeur
+    for s in (-1, 1):                                                         # bras de poussée
+        m.add(rod((s * .6, .7, 4.8), (s * .5, .75, 6.05), .09), "metal_d", "lame")
+    m.parts["lame"]["origin"] = np.array([0, .75, 5.0])
+    Rb = rot("y", .45)
+    arc = [(.12 + 1.45 * a, .5 * a * a) for a in np.linspace(0, 1, 8)]
+    m.add(curved_plate(arc, .08, 2.5, R=Rb, t=(0, 0, 6.45)), "orange", "lame")
+    m.add(curved_plate([(.02, 0), (.14, 0)], .12, 2.52, R=Rb, t=(0, 0, 6.47)), "rubber", "lame")
+    m.add(rod((0, 1.75, 6.9), (0, 2.3, 6.9), .02), "yellow", "lame")           # balises de gabarit
+    tyres(m, (-1.02, 1.02), (4.05, -2.6, -3.85), .58, .46)
+    return m
+
+
+# ---------------------------------------------------------------- engin de dégivrage
+def deicer():
+    """Dégivreuse à nacelle fermée sur flèche télescopique."""
+    m = Model("engin_degivrage"); C = "carrosserie"
+    cabover(m, "white")
+    m.add(boxmm(-1.0, .62, -5.0, 1.0, 1.0, 2.7), "metal_d", C)
+    top = [(-4.8, 2.4), (-4.65, 2.72), (-4.3, 2.82), (1.8, 2.82), (2.2, 2.6)]
+    bot = [(-4.8, 1.1), (2.2, 1.1)]
+    hw = [(-4.8, 1.1), (-4.65, 1.2), (2.0, 1.2), (2.2, 1.1)]
+    kw = dict(p=5, taper=.05, dz=.3)
+    m.add(spline_body(-4.8, 2.2, top, bot, hw, **kw), "orange", C)
+    m.add(spline_body(-4.8, 2.2, top, bot, hw, yclip=(1.7, 1.95), off=.015, push=(True, True), **kw), "white", C)
+    m.add(cyl((0, 2.75, -3.5), (0, 3.35, -3.5), .58, .48, n=16), "metal", C)   # tourelle
+    piv = np.array([0, 3.3, -3.5])
+    Rb = rot("x", -.75)
+    F = "fleche"
+    m.add(cyl(piv, piv + Rb @ np.array([0, 0, 6.2]), .26, .24, n=12), "white", F)
+    m.parts[F]["origin"] = piv
+    m.add(cyl(piv + Rb @ np.array([0, 0, 5.9]), piv + Rb @ np.array([0, 0, 9.9]), .19, n=12), "metal", F)
+    tip = piv + Rb @ np.array([0, 0, 10.0])
+    b0 = tip + [0, -.35, 0]
+    btop = [(-.7, .95), (-.6, 1.18), (.55, 1.2), (.7, .95)]
+    bbot = [(-.7, .05), (-.6, 0), (.6, 0), (.7, .05)]
+    bhw = [(-.7, .7), (-.6, .8), (.6, .8), (.7, .72)]
+    m.add(spline_body(-.7, .7, btop, bbot, bhw, p=4, taper=.08, dz=.1, t=b0), "orange", F)
+    m.add(spline_body(-.68, .7, btop, bbot, bhw, p=4, taper=.08, dz=.1, yclip=(.48, 1.05), off=.02,
+                      push=(False, True), t=b0), "glass_d", F)
+    m.add(rod(b0 + [0, .25, .7], b0 + [0, .15, 1.6], .06), "metal", F)       # buse
+    m.add(blob(tuple(b0 + [0, 1.25, 0]), .14, .08, .14), "orange", F)
+    tyres(m, (-1.02, 1.02), (4.05, -2.6, -3.85), .58, .46)
+    return m
+
+
+# ---------------------------------------------------------------- train
+def train():
+    """Navette ferroviaire aéroport : 3 voitures de 20 m, nez profilés aux deux extrémités."""
+    m = Model("train")
+    L, gap = 20.0, .8
+
+    def nose_profiles(z_nose, sgn):
+        def mk(lst):
+            return sorted((z_nose - sgn * d, v) for d, v in lst)
+        top = mk([(L, 3.6), (L - .15, 3.9), (L - .5, 3.95), (6.0, 3.95), (3.8, 3.82), (2.4, 3.4),
+                  (1.3, 2.7), (.5, 1.95), (.1, 1.45), (0, 1.2)])
+        bot = mk([(L, 1.0), (L - .15, .95), (.6, .95), (0, 1.1)])
+        hw = mk([(L, 1.38), (L - .2, 1.45), (3.0, 1.45), (1.5, 1.32), (.6, 1.08), (0, .7)])
+        return top, bot, hw
+
+    def mid_profiles(z0, z1):
+        top = [(z0, 3.6), (z0 + .15, 3.9), (z0 + .5, 3.95), (z1 - .5, 3.95), (z1 - .15, 3.9), (z1, 3.6)]
+        bot = [(z0, 1.0), (z0 + .15, .95), (z1 - .15, .95), (z1, 1.0)]
+        hw = [(z0, 1.38), (z0 + .2, 1.45), (z1 - .2, 1.45), (z1, 1.38)]
+        return top, bot, hw
+
+    kw = dict(p=5, taper=.1, dz=2.5, n=16)
+    z = 0.0
+    for k in range(3):
+        part = f"voiture_{k + 1}"
+        z0, z1 = z - L, z
+        if k == 0:
+            top, bot, hw = nose_profiles(z1, 1); nose = (z1, 1)
+        elif k == 2:
+            top, bot, hw = nose_profiles(z0, -1); nose = (z0, -1)
+        else:
+            top, bot, hw = mid_profiles(z0, z1); nose = None
+        m.add(spline_body(z0, z1, top, bot, hw, **kw), "white", part)
+        m.parts[part]["origin"] = np.array([0, 0, (z0 + z1) / 2])
+        wz0, wz1 = z0 + .5, z1 - .5
+        if nose:
+            zn, sg = nose
+            # pare-brise enveloppant
+            a, b = sorted((zn - sg * 3.6, zn))
+            m.add(spline_body(a, b, top, bot, hw, yclip=(2.3, 3.62), off=.02,
+                              push=(sg < 0, sg > 0), **{**kw, "dz": .3}), "glass_d", part)
+            if sg > 0: wz1 = zn - 4.3
+            else: wz0 = zn + 4.3
+            for s in (-1, 1):
+                m.add(blob((s * .62, 1.42, zn - sg * .38), .2, .07, .1), "yellow", part)
+        m.add(spline_body(wz0, wz1, top, bot, hw, yclip=(2.35, 3.15), off=.015, **kw), "glass_d", part)
+        m.add(spline_body(z0, z1, top, bot, hw, yclip=(1.3, 1.7), off=.02,
+                          push=(nose is None or nose[1] > 0, nose is None or nose[1] < 0), **kw), "blue", part)
+        m.add(spline_body(z0 + .3, z1 - .3, top, bot, hw, yclip=(.95, 1.25), off=.025, **kw), "metal_d", part)
+        for dzd in (z0 + 6.0, z1 - 6.0):                                        # portes louvoyantes
+            for s in (-1, 1):
+                x = s * (side_x(hw, top, bot, dzd, 2.2, .1, 5) + .02)
+                m.add(pad((x, 2.2, dzd), "x", s, .75, 1.05, .1, th=.03), "metal_d", part)
+                m.add(pad((x + s * .03, 2.55, dzd), "x", s, .6, .5, .08, th=.02), "glass", part)
+        for dzd in (z0 + 3.5, z1 - 3.5):                                        # bogies
+            m.add(spline_body(dzd - 1.4, dzd + 1.4, [(dzd - 1.4, 1.0), (dzd + 1.4, 1.0)], [(dzd - 1.4, .35), (dzd + 1.4, .35)],
+                              [(dzd - 1.4, 1.0), (dzd + 1.4, 1.0)], p=4, dz=1.4), "metal_d", part)
+            for wz in (dzd - 1.05, dzd + 1.05):
+                tyre(m, -.75, wz, .43, .14, part, hub="metal_d")
+                tyre(m, .75, wz, .43, .14, part, hub="metal_d")
+        if k == 1:                                                              # pantographe
+            m.add(spline_body(z0 + 8, z0 + 10, [(z0 + 8, 4.1), (z0 + 10, 4.1)], [(z0 + 8, 3.9), (z0 + 10, 3.9)],
+                              [(z0 + 8, .5), (z0 + 10, .5)], p=4, dz=2), "metal_d", part)
+            m.add(rod((0, 4.1, z0 + 8.5), (0, 4.7, z0 + 9.4), .04), "metal", part)
+            m.add(rod((-.8, 4.7, z0 + 9.4), (.8, 4.7, z0 + 9.4), .04), "metal", part)
+        if k < 2:                                                               # soufflet d'intercirculation
+            m.add(spline_body(z0 - gap - .05, z0 + .05, [(z0 - 1, 3.6), (z0 + 1, 3.6)], [(z0 - 1, 1.05), (z0 + 1, 1.05)],
+                              [(z0 - 1, 1.2), (z0 + 1, 1.2)], p=5, dz=.5), "rubber", part)
+        z = z0 - gap
+    return m
+
+
 ALL = {
     "batiments/terminal.glb": terminal,
     "batiments/tour_controle.glb": tower,
@@ -471,6 +994,15 @@ ALL = {
     "avions/turbopropulseur.glb": turboprop,
     "avions/moyen_courrier.glb": medium_haul,
     "avions/gros_porteur.glb": wide_body,
+    "vehicules/voiture.glb": car,
+    "vehicules/bus.glb": bus,
+    "vehicules/camion_citerne.glb": fuel_truck,
+    "vehicules/tracteur_repoussage.glb": pushback_tug,
+    "vehicules/train_bagages.glb": baggage_train,
+    "vehicules/camion_pompiers.glb": fire_truck,
+    "vehicules/chasse_neige.glb": snowplow,
+    "vehicules/engin_degivrage.glb": deicer,
+    "vehicules/train.glb": train,
 }
 
 if __name__ == "__main__":
