@@ -12,6 +12,8 @@ export const fr: Record<string, string> = {
   'panel.flights': 'Centre de gestion des vols', 'panel.airlines': 'Compagnies aériennes', 'panel.finance': 'Tableau de bord financier',
   'panel.staff': 'Personnel et services au sol', 'panel.incidents': 'Centre de contrôle des incidents', 'panel.research': 'Recherche et technologie',
   'panel.progress': 'Statistiques et progression',
+  'view.inside': 'Vue intérieure (aérogare)',
+  'inside.none': 'Construisez un terminal pour voir l\'intérieur.', 'inside.checkin': 'Enregistrement', 'inside.security': 'Sûreté', 'inside.gates': 'Embarquement', 'inside.baggage': 'Bagages', 'inside.total': 'Dans l\'aérogare',
   'view.top': 'Vue 2D', 'view.3d': 'Vue 3D réaliste', 'view.iso': 'Vue isométrique', 'view.hybrid': 'Vue hybride',
   'layer.traffic': '✈️ Trafic', 'layer.passengers': '👥 Passagers', 'layer.security': '🛡️ Sûreté', 'layer.finance': '💶 Finances',
   'layer.congestion': '🚦 Congestion', 'layer.logistics': '📦 Logistique', 'layer.staff': '👷 Personnel', 'layer.noise': '🔊 Nuisances',

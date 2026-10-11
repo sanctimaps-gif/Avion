@@ -17,7 +17,8 @@ import { View2D } from '../render/view2d';
 import { ViewIso } from '../render/viewIso';
 import { View3D, webglInfo } from '../render/view3d';
 import { LAYERS } from '../render/overlays';
-import type { Camera, FrameInfo, GameView, Ghost, Quality, ViewKind } from '../render/view';
+import { ZOOM_MAX, type Camera, type FrameInfo, type GameView, type Ghost, type Quality, type ViewKind } from '../render/view';
+import { mainInterior } from '../render/interior3d';
 import { btn, clear, h } from './dom';
 import { renderPanel, PANELS, type PanelId } from './panels';
 import { selectionCard } from './panels/selection';
@@ -121,7 +122,7 @@ export class App {
     new Controls(this.stage, {
       pan: (dx, dy) => { this.touchedAt = performance.now(); this.view.pan(this.cam, dx, dy); this.clampCam(); },
       zoom: (f, x, y) => { this.view.zoom(this.cam, f, x, y, this.s); this.clampCam(); },
-      rotate: (d) => { if (this.viewKind === '3d' || this.viewKind === 'iso') this.view.rotate(this.cam, d); },
+      rotate: (d) => { if (this.viewKind === '3d' || this.viewKind === 'inside' || this.viewKind === 'iso') this.view.rotate(this.cam, d); },
       tilt: (d) => { this.cam.pitch = clamp(this.cam.pitch + d, 0.35, 1.45); },
       tap: (x, y) => this.onTap(x, y),
       dragStart: (x, y) => this.onDragStart(x, y),
@@ -226,13 +227,16 @@ export class App {
   // ---------- Vues ----------
   setView(kind: ViewKind): void {
     if (this.view) this.view.canvas.remove();
-    let v = this.views[kind];
+    // La vue intérieure est un mode de la vue 3D : un seul contexte WebGL pour les deux.
+    const slot: ViewKind = kind === 'inside' ? '3d' : kind;
+    const from = this.viewKind;
+    let v = this.views[slot];
     if (v instanceof View3D && v.lost) {
       v.dispose();
       v = undefined;
     }
     if (!v) {
-      if (kind === '3d') {
+      if (slot === '3d') {
         try {
           // Le contexte WebGL n'est créé que lorsque la vue 3D est demandée.
           if (!webglInfo().webgl2) throw new Error('webgl2');
@@ -240,7 +244,7 @@ export class App {
           v3.onContextChange = (lost) => {
             if (lost) {
               this.toast(t('toast.3dLost'), 'warn');
-              if (this.viewKind === '3d') this.setView('iso');
+              if (this.viewKind === '3d' || this.viewKind === 'inside') this.setView('iso');
             }
           };
           v = v3;
@@ -251,11 +255,20 @@ export class App {
           v = this.views.iso ?? new ViewIso();
         }
       } else if (kind === 'iso') v = new ViewIso();
-      else v = new View2D(kind);
-      this.views[kind] = v;
+      else v = new View2D(kind as 'top' | 'hybrid');
+      this.views[kind === 'inside' ? '3d' : kind] = v;
     }
+    if (v instanceof View3D) v.setInterior(kind === 'inside');
+    if (kind === 'inside' && from !== 'inside') {
+      // Entrée dans l'aérogare : caméra rapprochée sur le terminal principal.
+      const c = mainInterior(this.s);
+      if (c) this.centerOn(c.x, c.y);
+      else this.toast(t('inside.none'), 'warn');
+      this.cam.zoom = Math.max(this.cam.zoom, 140);
+      this.cam.pitch = 0.85;
+    } else if (from === 'inside' && kind !== 'inside') this.cam.zoom = Math.min(this.cam.zoom, ZOOM_MAX);
     // Angle de vue en perspective plus naturel à l'entrée en 3D.
-    if (kind === '3d' && this.viewKind !== '3d' && Math.abs(this.cam.rot % (Math.PI / 2)) < 0.01) {
+    if (kind === '3d' && this.viewKind !== '3d' && this.viewKind !== 'inside' && Math.abs(this.cam.rot % (Math.PI / 2)) < 0.01) {
       this.cam.rot += 0.55;
       this.cam.pitch = 0.7;
     }
@@ -279,7 +292,7 @@ export class App {
     this.root.style.setProperty('--top-h', top + 'px');
     this.viewbar.style.top = top + 8 + 'px';
     this.layerbar.style.top = top + 8 + 'px';
-    this.toasts.style.top = top + 8 + (this.viewKind === 'hybrid' ? 46 : 0) + 'px';
+    this.toasts.style.top = top + 8 + (this.viewKind === 'hybrid' || this.viewKind === 'inside' ? 46 : 0) + 'px';
     this.placebar.style.bottom = navH + 10 + 'px';
     this.fpsEl.style.bottom = navH + 8 + 'px';
   }
@@ -321,7 +334,12 @@ export class App {
     for (const f of this.s.flights) this.prev.set(f.id, { ...f.pos });
   }
 
+  private insideStatsAt = 0;
   private renderFrame(now: number): void {
+    if (this.viewKind === 'inside' && now - this.insideStatsAt > 1000) {
+      this.insideStatsAt = now;
+      this.renderInsideStats();
+    }
     const fi: FrameInfo = {
       frac: this.frac,
       prev: this.prev,
@@ -677,20 +695,40 @@ export class App {
 
   private renderViewbar(): void {
     clear(this.viewbar);
-    const items: [ViewKind, string][] = [['top', '2D'], ['3d', '3D'], ['iso', 'ISO'], ['hybrid', 'HYB']];
+    const items: [ViewKind, string][] = [['top', '2D'], ['3d', '3D'], ['iso', 'ISO'], ['hybrid', 'HYB'], ['inside', 'INT']];
     for (const [k, label] of items) {
       this.viewbar.append(h('button', { class: 'iconbtn' + (this.viewKind === k ? ' active' : ''), onclick: () => this.setView(k), title: t('view.' + k) }, label));
     }
-    if (this.viewKind === '3d' || this.viewKind === 'iso') {
+    if (this.viewKind === '3d' || this.viewKind === 'inside' || this.viewKind === 'iso') {
       this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => { this.cam.rot += Math.PI / 2; }, title: t('ui.rotate') }, '⟳'));
     }
     this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => this.view.zoom(this.cam, 1.25, innerWidth / 2, innerHeight / 2, this.s) }, '＋'));
     this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => this.view.zoom(this.cam, 0.8, innerWidth / 2, innerHeight / 2, this.s) }, '－'));
   }
 
+  /** Vue intérieure : indicateurs de l'aérogare à la place des couches. */
+  private renderInsideStats(): void {
+    clear(this.layerbar);
+    const l = this.s.pax.live;
+    const sum = (a: { n: number }[]): number => a.reduce((x, c) => x + c.n, 0);
+    const chip = (label: string, v: number): HTMLElement => h('span', { class: 'chip' }, `${label} ${Math.round(v)}`);
+    this.layerbar.append(
+      chip(t('inside.checkin'), l.checkinQueue),
+      chip(t('inside.security'), l.securityQueue),
+      chip(t('inside.gates'), sum(this.s.pax.airside)),
+      chip(t('inside.baggage'), l.baggageQueue),
+      chip(t('inside.total'), l.inTerminal),
+    );
+  }
+
   private renderLayerbar(): void {
     clear(this.layerbar);
-    this.layerbar.style.display = this.viewKind === 'hybrid' ? 'flex' : 'none';
+    this.layerbar.style.display = this.viewKind === 'hybrid' || this.viewKind === 'inside' ? 'flex' : 'none';
+    if (this.viewKind === 'inside') {
+      this.renderInsideStats();
+      this.resize();
+      return;
+    }
     for (const l of LAYERS) {
       this.layerbar.append(h('button', { class: 'chip' + (this.layers.has(l) ? ' on' : ''), onclick: () => { if (this.layers.has(l)) this.layers.delete(l); else this.layers.add(l); this.renderLayerbar(); } }, t('layer.' + l)));
     }

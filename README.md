@@ -62,6 +62,9 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
   tracteur de repoussage, engin de dégivrage, camions de pompiers (sur la piste en cas d'incident),
   chasse-neige sur les pistes enneigées, train en gare. Qualité « Faible » : cubes simples.
 - Simulation unique minute par minute, déterministe (même sauvegarde ⇒ mêmes événements).
+- Vue intérieure (bouton INT) : l'aérogare en coupe (enregistrement, sûreté, salles d'embarquement, bagages,
+  cafés, boutiques, salons) avec une foule animée qui suit la simulation (files, passagers en salle, passants)
+  et les indicateurs en direct.
 - 4 vues sur la même simulation : 2D, 3D réaliste (ombres, cycle jour/nuit, brouillard, pluie/neige,
   fenêtres éclairées la nuit), isométrique (rotation par quarts de tour), hybride (8 couches : trafic,
   passagers, sûreté, finances, congestion, logistique, personnel, nuisances).

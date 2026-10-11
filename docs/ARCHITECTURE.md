@@ -50,6 +50,8 @@ Les liens flights → passengers/airlines passent par `flightHooks` (pas d'impor
 - `ground.ts` dessine le sol et les infrastructures plates **dans n'importe quelle projection**
   (plane, isométrique) ; la même image sert de texture au sol 3D. Mise en cache hors écran.
 - `view2d.ts` (vues 2D et hybride), `viewIso.ts`, `view3d.ts` implémentent `GameView`
+- `interior3d.ts` : vue intérieure, mode de `View3D` (même contexte WebGL) ; bâtiments de l'aérogare en coupe
+  (mobilier instancié) et foule (`Crowd`, InstancedMesh) placée chaque image selon `s.pax`.
   (`render`, `screenToTile`, `pan`, `zoom`, `rotate`). La caméra (`Camera`) est partagée :
   changer de vue conserve la position.
 - `overlays.ts` : couches de la vue hybride. `input.ts` : gestes tactiles (Pointer Events).

@@ -1,7 +1,7 @@
 import type { GameState, Pt } from '../sim/types';
 
-/** Contrat commun aux quatre vues graphiques. */
-export type ViewKind = 'top' | '3d' | 'iso' | 'hybrid';
+/** Contrat commun aux vues graphiques (la vue intérieure est un mode de la vue 3D). */
+export type ViewKind = 'top' | '3d' | 'iso' | 'hybrid' | 'inside';
 
 export interface Camera {
   cx: number;

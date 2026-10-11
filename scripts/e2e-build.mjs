@@ -87,6 +87,16 @@ await page.locator('.panel .btn', { hasText: 'Accepter' }).first().click();
 check('offre acceptée', (await page.evaluate(() => window.game.s.contracts.length)) === c0 + 1);
 await page.screenshot({ path: `${out}/23-fr.png` });
 
+// Vue intérieure (aérogare en coupe, foule)
+await page.keyboard.press('Escape');
+await page.locator('.viewbar button', { hasText: 'INT' }).click();
+await page.waitForTimeout(2500);
+check('vue intérieure active', (await page.evaluate(() => window.game.viewKind)) === 'inside' && (await page.locator('.layers .chip').count()) === 5);
+await page.screenshot({ path: `${out}/24-inside.png` });
+await page.locator('.viewbar button', { hasText: '3D' }).click();
+await page.waitForTimeout(800);
+check('retour en 3D depuis l\'intérieur', (await page.evaluate(() => window.game.viewKind)) === '3d');
+
 console.log(errors.length ? 'ERREURS: ' + errors.join(' | ') : 'OK');
 await browser.close();
 process.exit(errors.length ? 1 : 0);

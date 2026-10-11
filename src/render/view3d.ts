@@ -9,7 +9,7 @@ import { bFootprint, getWorld } from '../sim/world';
 import type { Building, Flight, GameState, Pt } from '../sim/types';
 import { daylight, flightPose, minuteOfDay, serviceVehicles, sunAngle } from './common';
 import { drawGround, FLAT } from './ground';
-import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from './view';
+import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 
 /**
  * Vue 3D réaliste (Three.js) : bâtiments en volume, avions animés,
@@ -24,6 +24,7 @@ import { Environment } from './env3d';
 import { VehicleFleet, type VehicleModel } from './vehicles3d';
 import { WEATHER } from '../data/weather';
 import { activeList } from '../sim/incidents';
+import { Crowd, forgetInterior, INTERIOR, interiorBuilding, interiorNightMats } from './interior3d';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
 export function webglInfo(): { webgl2: boolean; renderer: string } {
@@ -41,7 +42,11 @@ export function webglInfo(): { webgl2: boolean; renderer: string } {
 }
 
 export class View3D implements GameView {
-  kind = '3d' as const;
+  kind: ViewKind = '3d';
+  /** Mode « intérieur » : aérogare en coupe, mobilier et foule. */
+  interior = false;
+  private crowd = new Crowd();
+  private interiorIds: number[] = [];
   canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -123,6 +128,8 @@ export class View3D implements GameView {
     this.scene.add(this.ground);
     this.scene.add(this.env.group);
     this.scene.add(this.fleet.group);
+    this.crowd.group.visible = false;
+    this.scene.add(this.crowd.group);
 
     this.vehicles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.25, 0.22), new THREE.MeshStandardMaterial({ color: '#ffffff' }), 400);
     this.vehicles.count = 0;
@@ -172,6 +179,15 @@ export class View3D implements GameView {
     this.canvas.remove();
   }
 
+  /** Passe en vue intérieure (ou en revient) : les bâtiments concernés sont redessinés. */
+  setInterior(on: boolean): void {
+    this.interior = on;
+    this.kind = on ? 'inside' : '3d';
+    this.crowd.group.visible = on;
+    this.camera.near = on ? 0.05 : 0.5;
+    this.camera.updateProjectionMatrix();
+  }
+
   private distance(cam: Camera): number {
     return 1100 / cam.zoom;
   }
@@ -202,7 +218,7 @@ export class View3D implements GameView {
     cam.cy = clamp(cam.cy, -10, this.mapH + 10);
   }
   zoom(cam: Camera, factor: number): void {
-    cam.zoom = clamp(cam.zoom * factor, ZOOM_MIN, ZOOM_MAX);
+    cam.zoom = clamp(cam.zoom * factor, ZOOM_MIN, this.interior ? ZOOM_MAX * 3 : ZOOM_MAX);
   }
   rotate(cam: Camera, d: number): void {
     cam.rot -= d;
@@ -293,21 +309,26 @@ export class View3D implements GameView {
 
   private syncBuildings(s: GameState): void {
     const seen = new Set<number>();
+    const ids: number[] = [];
     for (const b of s.buildings) {
       if (BUILDINGS[b.type].linear) continue;
       const flat = FLAT.has(b.type);
       seen.add(b.id);
-      const key = `${b.type}|${b.x}|${b.y}|${b.rot}|${b.level}|${b.buildRemaining > 0 ? Math.floor(b.buildRemaining / 60) : 'ok'}|${b.brokenFor > 0}|${flat ? getWorld(s).rev : ''}`;
+      const inside = this.interior && INTERIOR.has(b.type) && b.buildRemaining <= 0;
+      if (inside) ids.push(b.id);
+      const key = `${b.type}|${b.x}|${b.y}|${b.rot}|${b.level}|${b.buildRemaining > 0 ? Math.floor(b.buildRemaining / 60) : 'ok'}|${b.brokenFor > 0}|${flat || inside ? getWorld(s).rev : ''}|${inside ? 'in' : ''}`;
       const cur = this.buildings.get(b.id);
       if (cur && cur.key === key) continue;
       if (cur) this.scene.remove(cur.obj);
-      const obj = flat ? this.makeDecor(s, b) ?? new THREE.Group() : this.makeBuilding(b);
+      const obj = inside ? interiorBuilding(s, b) : flat ? this.makeDecor(s, b) ?? new THREE.Group() : this.makeBuilding(b);
       this.scene.add(obj);
       this.buildings.set(b.id, { obj, key });
     }
+    this.interiorIds = ids;
     for (const [id, v] of this.buildings) {
       if (!seen.has(id)) {
         this.scene.remove(v.obj);
+        forgetInterior(id);
         this.buildings.delete(id);
       }
     }
@@ -687,6 +708,11 @@ export class View3D implements GameView {
     this.env.setSnow(snowy);
     this.env.sync(s, w.rev, fi.quality);
     this.env.update(s, fi.realTime, dl, overcast, new THREE.Vector3(cam.cx, 0, cam.cy));
+
+    if (this.interior) {
+      this.crowd.update(s, this.interiorIds, fi.realTime);
+      for (const m of interiorNightMats) m.emissiveIntensity = night * 0.35;
+    }
 
     this.placeCamera(cam);
     this.renderer.render(this.scene, this.camera);
