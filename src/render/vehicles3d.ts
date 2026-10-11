@@ -16,7 +16,8 @@ export type VehicleModel =
   | 'camion_pompiers'
   | 'chasse_neige'
   | 'engin_degivrage'
-  | 'train';
+  | 'train'
+  | 'escalier';
 
 const CAPACITY: Record<VehicleModel, number> = {
   voiture: 90,
@@ -28,6 +29,7 @@ const CAPACITY: Record<VehicleModel, number> = {
   chasse_neige: 8,
   engin_degivrage: 12,
   train: 2,
+  escalier: 16,
 };
 
 interface Pool {

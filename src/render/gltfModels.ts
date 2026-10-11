@@ -18,6 +18,10 @@ import fireTruckUrl from '../assets/models/vehicules/camion_pompiers.glb?inline'
 import plowUrl from '../assets/models/vehicules/chasse_neige.glb?inline';
 import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?inline';
 import trainUrl from '../assets/models/vehicules/train.glb?inline';
+import towerBigUrl from '../assets/models/sketchfab/tour_controle_bs.glb?inline';
+import jetUrl from '../assets/models/sketchfab/avion1_bs.glb?inline';
+import rearJetUrl from '../assets/models/sketchfab/avion3_bs.glb?inline';
+import stairsUrl from '../assets/models/sketchfab/escalier_bs.glb?inline';
 import { nightMats } from './models3d';
 
 /**
@@ -44,6 +48,11 @@ const SOURCES: Record<string, string> = {
   chasse_neige: plowUrl,
   engin_degivrage: deicerUrl,
   train: trainUrl,
+  // Pièces de « Airport Final Big Scene » (assetfactory, Sketchfab Standard) — voir CREDITS.md
+  tour_controle_bs: towerBigUrl,
+  avion1_bs: jetUrl,
+  avion3_bs: rearJetUrl,
+  escalier: stairsUrl,
 };
 
 /** Échelle des véhicules : 1 case ≈ 8 m (légèrement exagérée pour rester lisible à côté des avions). */
@@ -85,13 +94,13 @@ export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[]
   return parts;
 }
 
-/** Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z)]. */
-const BUILDING_MODELS: Record<string, [string, number]> = {
+/** Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z), hauteur max en cases]. */
+const BUILDING_MODELS: Record<string, [string, number, number?]> = {
   terminal_s: ['terminal', Math.PI],
   terminal_m: ['terminal', Math.PI],
   terminal_l: ['terminal', Math.PI],
   tower_s: ['tour_controle', 0],
-  tower_l: ['tour_controle', 0],
+  tower_l: ['tour_controle_bs', 0, 7],
   hangar: ['hangar', Math.PI],
   fire_station: ['caserne_pompiers', Math.PI],
   parking_m: ['parking', 0],
@@ -101,13 +110,15 @@ const BUILDING_MODELS: Record<string, [string, number]> = {
 /** Avion du jeu → modèle. */
 const AIRCRAFT_MODELS: Record<string, string> = {
   tp70: 'turbopropulseur',
-  rj95: 'moyen_courrier',
+  rj95: 'avion3_bs',
   nb180: 'moyen_courrier',
   nb220: 'moyen_courrier',
-  wb300: 'gros_porteur',
-  wb380: 'gros_porteur',
+  wb300: 'avion1_bs',
+  wb380: 'avion1_bs',
   sj550: 'gros_porteur',
 };
+/** Direction du nez dans le modèle (par défaut +Z). */
+const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion1_bs: '+X', avion3_bs: '-X' };
 /** Matériaux portant la couleur de la compagnie. */
 const LIVERY = new Set(['red', 'blue', 'navy']);
 
@@ -185,7 +196,8 @@ export function importedBuilding(type: string, W: number, D: number): THREE.Obje
     ez = size.x;
   }
   holder.rotation.y = rot;
-  const sc = Math.min((W * 0.97) / ex, (D * 0.97) / ez);
+  let sc = Math.min((W * 0.97) / ex, (D * 0.97) / ez);
+  if (spec[2]) sc = Math.min(sc, spec[2] / size.y);
   const out = new THREE.Group();
   holder.scale.setScalar(sc);
   out.add(holder);
@@ -219,13 +231,14 @@ export function importedAircraft(aircraft: string, length: number, color: string
     }
   });
   const size = t.box.getSize(new THREE.Vector3());
-  const sc = length / size.z;
+  const nose = NOSE[name] ?? '+Z';
+  const sc = length / (nose === '+Z' ? size.z : size.x);
   const holder = new THREE.Group();
   inner.position.y = -t.box.min.y;
   holder.add(inner);
   holder.scale.setScalar(sc);
-  // Nez du modèle vers +Z → vers +X dans le jeu.
-  holder.rotation.y = Math.PI / 2;
+  // Nez du modèle orienté vers +X (convention du jeu).
+  holder.rotation.y = nose === '+Z' ? Math.PI / 2 : nose === '-X' ? Math.PI : 0;
   const obj = new THREE.Group();
   obj.add(holder);
   const props = ['helice_gauche', 'helice_droite'].map((n) => inner.getObjectByName(n)).filter((x): x is THREE.Object3D => !!x);

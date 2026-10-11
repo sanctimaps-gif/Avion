@@ -449,6 +449,14 @@ export class View3D implements GameView {
       else model = f.contact ? 'train_bagages' : 'bus';
       this.fleet.add(model, v.x, v.y, hdg);
     });
+    // Poste éloigné : escalier mobile contre la porte avant
+    if (!f.contact && (f.phase === 'boarding' || f.phase === 'deboarding')) {
+      const fwd = a.length * 0.28;
+      const side = a.length * 0.07 + 0.35;
+      const nx = Math.cos(p.hdg);
+      const nz = Math.sin(p.hdg);
+      this.fleet.add('escalier', p.x + nx * fwd - nz * side, p.y + nz * fwd + nx * side, p.hdg);
+    }
   }
 
   /** Véhicules liés aux installations : pompiers, chasse-neige, train. */

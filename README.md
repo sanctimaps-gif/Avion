@@ -49,6 +49,9 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
 - Modèles 3D importés (`src/assets/models/*.glb`, intégrés au fichier unique) : terminal, tour, hangar,
   caserne, parking, hôtel, turbopropulseur (hélices animées), moyen-courrier, gros-porteur (couleurs
   de la compagnie). Les autres bâtiments utilisent des modèles procéduraux.
+- Modèles tiers (`src/assets/models/sketchfab/`, voir `CREDITS.md`) : grande tour de contrôle, jet régional,
+  gros-porteur biréacteur, escalier mobile — extraits de « Airport Final Big Scene » (assetfactory,
+  licence Sketchfab Standard) et allégés par `scripts/extract_sketchfab_parts.mjs`.
 - Véhicules 3D instanciés (`src/assets/models/vehicules/`, allégés par `scripts/lowpoly_vehicles.py`) :
   voitures et bus sur les routes et l'autoroute, camion-citerne, train de bagages, bus de piste,
   tracteur de repoussage, engin de dégivrage, camions de pompiers (sur la piste en cas d'incident),
