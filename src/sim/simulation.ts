@@ -23,6 +23,7 @@ flightHooks.onFlightDone = onFlightDone;
 
 /** Minutes de jeu simulées par seconde réelle selon la vitesse choisie. */
 export const SPEEDS = [0, 2, 6, 20, 60];
+export const CONTROL_TIME = 0.28;
 
 export function tick(s: GameState): void {
   if (s.gameOver) return;
@@ -99,7 +100,8 @@ export class Clock {
   lastTicks = 0;
   /** Avance la simulation ; `before` est appelé juste avant le dernier tick (interpolation). */
   advance(s: GameState, dtSec: number, before?: () => void, maxTicks = 240): number {
-    const rate = SPEEDS[this.speed] ?? 0;
+    // Mode contrôleur : le temps passe 3,5 fois moins vite pour laisser le temps de donner les ordres.
+    const rate = (SPEEDS[this.speed] ?? 0) * (s.settings.control === 'manual' ? CONTROL_TIME : 1);
     this.acc += Math.min(dtSec, 0.25) * rate;
     let n = 0;
     while (this.acc >= 1 && n < maxTicks) {

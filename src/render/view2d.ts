@@ -5,7 +5,7 @@ import { canBuyParcel, parcelCount } from '../sim/construction';
 import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { GameState, Pt } from '../sim/types';
-import { daylight, drawPlane, flightPose, GLYPH, minuteOfDay, serviceVehicles, type Project } from './common';
+import { daylight, drawPlane, flightPose, GLYPH, minuteOfDay, remainingRoute, serviceVehicles, type Project } from './common';
 import { drawGround, FLAT, GroundCache } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
@@ -188,6 +188,21 @@ export class View2D implements GameView {
       drawPlane(ctx, f, len);
       ctx.restore();
       if (fi.selectedFlight === f.id) {
+        const route = remainingRoute(f);
+        if (route.length > 1) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(37,99,235,0.85)';
+          ctx.lineWidth = Math.max(3, z * 0.22);
+          ctx.lineCap = ctx.lineJoin = 'round';
+          ctx.beginPath();
+          route.forEach((q, i) => {
+            const [qx, qy] = P(q.x, q.y);
+            if (i) ctx.lineTo(qx, qy);
+            else ctx.moveTo(qx, qy);
+          });
+          ctx.stroke();
+          ctx.restore();
+        }
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 2;
         ctx.beginPath();

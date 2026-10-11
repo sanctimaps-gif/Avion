@@ -58,7 +58,7 @@ export function savesPanel(app: App): HTMLElement {
             if (current) {
               const rest = await app.saves.list();
               if (rest.length) await app.loadGame(rest[0].id);
-              else await app.newGame({ name: t('default.airportName'), mode: 'career' });
+              else await app.newGame({ name: t('default.airportName'), mode: 'career', control: 'manual' });
             }
             app.act();
           }, t('saves.delete'), true), 'danger sm'))));
@@ -111,6 +111,7 @@ const form = {
   unlimitedMoney: false,
   allUnlocked: false,
   startCash: 5_000_000,
+  control: 'manual' as 'auto' | 'manual',
 };
 
 export function newGamePanel(app: App): HTMLElement {
@@ -141,6 +142,8 @@ export function newGamePanel(app: App): HTMLElement {
     root.append(section(t('ng.scenario'), list.map((sc) => h('div', { class: 'card build-item' + (form.scenario === sc.id ? ' sel' : ''), onclick: () => { form.scenario = sc.id; app.act(); } },
       h('h4', null, t('sc.' + sc.id)), h('div', { class: 'meta' }, t('scd.' + sc.id)), h('div', { class: 'meta' }, `${sc.days} ${t('ui.days')} · ${money(sc.cash)}`)))));
   }
+  root.append(seg(t('ctl.mode'), [['manual', t('ctl.manual')], ['auto', t('ctl.auto')]], () => form.control, (v) => (form.control = v)));
+  root.append(h('p', { class: 'hint' }, t('ctl.modeHint')));
   root.append(h('div', { class: 'row end', style: 'margin-top:10px' },
     btn(t('ui.cancel'), () => app.openPanel('saves')),
     btn(t('ng.start'), () => {
@@ -155,6 +158,7 @@ export function newGamePanel(app: App): HTMLElement {
         allUnlocked: form.allUnlocked,
         startCash: form.mode === 'sandbox' ? form.startCash : undefined,
         scenario,
+        control: form.control,
       });
       form.name = '';
     }, 'primary')));
@@ -174,7 +178,9 @@ export function settingsPanel(app: App): HTMLElement {
     seg(t('set.fps'), [[false, t('ui.no')], [true, t('ui.yes')]], () => st.showFps, (v) => (st.showFps = v)),
     section(t('set.game'),
       seg(t('ng.events'), [[0, t('freq.0')], [1, t('freq.1')], [2, t('freq.2')], [3, t('freq.3')]], () => app.s.settings.eventsFreq, (v) => (app.s.settings.eventsFreq = v)),
-      seg(t('ng.weather'), [[true, t('ui.yes')], [false, t('ui.no')]], () => app.s.settings.weather, (v) => (app.s.settings.weather = v))),
+      seg(t('ng.weather'), [[true, t('ui.yes')], [false, t('ui.no')]], () => app.s.settings.weather, (v) => (app.s.settings.weather = v)),
+      seg(t('ctl.mode'), [['manual', t('ctl.manual')], ['auto', t('ctl.auto')]], () => app.s.settings.control ?? 'auto', (v) => (app.s.settings.control = v)),
+      h('p', { class: 'hint' }, t('ctl.modeHint'))),
     h('p', { class: 'hint' }, t('set.hint')),
     section(t('set.diag'), (() => {
       const wi = webglInfo();

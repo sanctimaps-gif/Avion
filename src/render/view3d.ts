@@ -7,7 +7,7 @@ import { canBuyParcel, parcelCount } from '../sim/construction';
 import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, Flight, GameState, Pt } from '../sim/types';
-import { daylight, flightPose, minuteOfDay, serviceVehicles, sunAngle } from './common';
+import { daylight, flightPose, minuteOfDay, remainingRoute, serviceVehicles, sunAngle } from './common';
 import { drawGround, FLAT } from './ground';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 
@@ -47,6 +47,9 @@ export class View3D implements GameView {
   interior = false;
   private crowd = new Crowd();
   private interiorIds: number[] = [];
+  /** Tracé bleu du roulage du vol sélectionné. */
+  private route = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: '#2563eb', transparent: true, opacity: 0.85, depthWrite: false }));
+  private routeKey = '';
   canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -130,6 +133,8 @@ export class View3D implements GameView {
     this.scene.add(this.fleet.group);
     this.crowd.group.visible = false;
     this.scene.add(this.crowd.group);
+    this.route.renderOrder = 2;
+    this.scene.add(this.route);
 
     this.vehicles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.25, 0.22), new THREE.MeshStandardMaterial({ color: '#ffffff' }), 400);
     this.vehicles.count = 0;
@@ -615,6 +620,7 @@ export class View3D implements GameView {
         this.selection.visible = true;
       }
     }
+    this.syncRoute(s, fi);
     if (fi.selectedFlight !== null) {
       const p = this.planes.get(fi.selectedFlight);
       if (p) {
@@ -637,6 +643,34 @@ export class View3D implements GameView {
         this.parcels.add(m);
       }
     }
+  }
+
+  /** Ruban posé au sol le long du trajet restant du vol sélectionné. */
+  private syncRoute(s: GameState, fi: FrameInfo): void {
+    const f = fi.selectedFlight !== null ? s.flights.find((x) => x.id === fi.selectedFlight) : undefined;
+    const pts = f ? remainingRoute(f) : [];
+    this.route.visible = pts.length > 1;
+    if (!this.route.visible) return;
+    const key = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(';');
+    if (key === this.routeKey) return;
+    this.routeKey = key;
+    const w = 0.12;
+    const pos: number[] = [];
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = (-(b.y - a.y) / len) * w;
+      const nz = ((b.x - a.x) / len) * w;
+      const y = 0.06;
+      pos.push(a.x + nx, y, a.y + nz, b.x + nx, y, b.y + nz, b.x - nx, y, b.y - nz);
+      pos.push(a.x + nx, y, a.y + nz, b.x - nx, y, b.y - nz, a.x - nx, y, a.y - nz);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    this.route.geometry.dispose();
+    this.route.geometry = g;
+    (this.route.material as THREE.Material).side = THREE.DoubleSide;
   }
 
   render(s: GameState, cam: Camera, fi: FrameInfo): void {

@@ -34,6 +34,7 @@ export interface NewGameOptions {
   scenario?: string;
   seed?: number;
   startTier?: number;
+  control?: 'auto' | 'manual';
 }
 
 const START_CASH = { easy: 4_000_000, normal: 2_500_000, hard: 1_200_000 };
@@ -216,6 +217,7 @@ export function createGame(opts: NewGameOptions): GameState {
     unlimitedMoney: opts.mode === 'sandbox' && !!opts.unlimitedMoney,
     allUnlocked: opts.mode === 'sandbox' && !!opts.allUnlocked,
     startCash: opts.startCash ?? scenario?.cash ?? START_CASH[difficulty],
+    control: opts.control ?? 'auto',
   };
   const now = Date.now();
   const s: GameState = {

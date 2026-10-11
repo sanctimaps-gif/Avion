@@ -10,6 +10,8 @@ import { repair, repairCost } from '../../sim/incidents';
 import { getWorld, invalidateWorld } from '../../sim/world';
 import type { App } from '../app';
 import { bar, btn, h, kv } from '../dom';
+import { controlBlock } from '../control';
+import { standNo } from '../../sim/control';
 
 /** Fiche contextuelle d'un bâtiment ou d'un avion sélectionné. */
 export function selectionCard(app: App): { title: string; body: HTMLElement } | null {
@@ -24,6 +26,7 @@ export function selectionCard(app: App): { title: string; body: HTMLElement } | 
     return {
       title: `${f.arrNo} / ${f.depNo}`,
       body: h('div', null,
+        controlBlock(app, f),
         h('div', { class: 'meta' }, h('span', { style: `color:${al.color}` }, '■ '), `${al.name} · ${a.name}`),
         kv(t('fl.route'), `${dest.city} (${dest.code}) ⇄ ${s.name}`),
         kv(t('fl.status'), t('ph.' + f.phase)),
@@ -31,7 +34,7 @@ export function selectionCard(app: App): { title: string; body: HTMLElement } | 
         kv(t('fl.schedDep'), clock(f.schedDep % 1440) + (f.actDep !== null ? ` → ${clock(f.actDep % 1440)}` : '')),
         kv(t('fl.paxArr'), `${f.paxArr}${f.transferIn ? ` (${f.transferIn} ${t('fl.transfers')})` : ''}`),
         kv(t('fl.paxDep'), `${f.paxBoarded || f.paxDep}${f.transferOut ? ` (${f.transferOut} ${t('fl.transfers')})` : ''}`),
-        kv(t('fl.stand'), stand ? `#${stand.id} ${f.contact ? '🚪 ' + t('fl.contact') : '🚌 ' + t('fl.remote')}` : '—'),
+        kv(t('fl.stand'), stand ? `${t('ctl.stand')} ${standNo(s, stand.id)} ${f.contact ? '🚪 ' + t('fl.contact') : '🚌 ' + t('fl.remote')}` : '—'),
         f.delayReason ? kv(t('fl.delayReason'), t(f.delayReason), 'warn') : null,
         f.revenue ? kv(t('fl.revenue'), money(f.revenue)) : null,
         h('div', { class: 'meta small' }, `${a.seats} ${t('ui.seats')} · ${a.mtow} t · ${t('fl.minRunway')} ${num(a.minRunway)} m`)),

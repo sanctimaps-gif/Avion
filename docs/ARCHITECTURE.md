@@ -54,6 +54,8 @@ Les liens flights → passengers/airlines passent par `flightHooks` (pas d'impor
   changer de vue conserve la position.
 - `interior3d.ts` : vue intérieure, mode de `View3D` (même contexte WebGL) ; bâtiments de l'aérogare en coupe
   (mobilier instancié) et foule (`Crowd`, InstancedMesh) placée chaque image selon `s.pax`.
+- Mode contrôleur : `sim/flights.ts` (`pendingAction`, limites d'assistance, services), `sim/control.ts` (ordres du
+  joueur), `ui/control.ts` (strips et bloc d'ordres de la fiche avion). Test : `tests/control.test.ts`.
 - `overlays.ts` : couches de la vue hybride. `input.ts` : gestes tactiles (Pointer Events).
 - Les positions des avions sont interpolées entre deux minutes de simulation.
 

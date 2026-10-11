@@ -62,6 +62,11 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
   tracteur de repoussage, engin de dégivrage, camions de pompiers (sur la piste en cas d'incident),
   chasse-neige sur les pistes enneigées, train en gare. Qualité « Faible » : cubes simples.
 - Simulation unique minute par minute, déterministe (même sauvegarde ⇒ mêmes événements).
+- **Mode Contrôleur** (par défaut dans une nouvelle partie, bouton 🎧 pour l'activer/désactiver) : colonne des vols
+  avec ordres en attente, choix du poste à l'arrivée (cartes de postes ou toucher un poste), lancement des services
+  au sol (carburant, bagages, catering, nettoyage), autorisations de roulage et de décollage, tracé bleu du roulage,
+  limite d'assistance (au-delà, l'aéroport agit seul et la compagnie est mécontente). Le temps s'écoule 3,5 fois
+  moins vite dans ce mode.
 - Vue intérieure (bouton INT) : l'aérogare en coupe (enregistrement, sûreté, salles d'embarquement, bagages,
   cafés, boutiques, salons) avec une foule animée qui suit la simulation (files, passagers en salle, passants)
   et les indicateurs en direct.

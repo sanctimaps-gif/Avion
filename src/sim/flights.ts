@@ -7,8 +7,9 @@ import { earn, firstActive, STANDARD_FEES } from './economy';
 import { addLog } from './log';
 import { demandMult, hasIncident, activeIncidents, tech, weatherDef } from './modifiers';
 import { staffEfficiency } from './staff';
+import { airlineState } from './airlines';
 import { getWorld, runwayAccess, taxiPath, type RunwayInfo, type StandInfo, type World } from './world';
-import type { Contract, Flight, GameState, Pt } from './types';
+import type { Contract, Flight, GameState, Pt, ServiceKind } from './types';
 
 /**
  * Trafic aérien. Chaque rotation suit les étapes opérationnelles :
@@ -22,6 +23,72 @@ export const APPROACH_MIN = 10;
 export const RUNWAY_ROLL_MIN = 2;
 export const HOLD_DIVERT_MIN = 45;
 export const ONTIME_LIMIT = 15;
+
+// ---------- Mode contrôleur ----------
+/** Demande de poste : ouverte STAND_REQ_MIN minutes avant l'arrivée prévue. */
+export const STAND_REQ_MIN = 40;
+/** Limites d'assistance (minutes de jeu) avant prise en charge automatique. */
+export const LIMIT = { holding: 12, services: 15, taxi: 12, takeoff: 10 };
+export const SERVICES: ServiceKind[] = ['fuel', 'bags', 'catering', 'cleaning'];
+/** Part de la durée d'escale de chaque service (ils se déroulent en parallèle). */
+export const SERVICE_SHARE: Record<ServiceKind, number> = { bags: 1, fuel: 0.7, catering: 0.6, cleaning: 0.5 };
+export type CtlNeed = 'stand' | 'services' | 'taxi' | 'takeoff';
+
+export function manual(s: GameState): boolean {
+  return s.settings.control === 'manual';
+}
+
+/** Ordre attendu du joueur pour ce vol (mode contrôleur), avec sa limite d'assistance. */
+export function pendingAction(s: GameState, f: Flight): { need: CtlNeed; since: number; deadline: number } | null {
+  if (!manual(s)) return null;
+  switch (f.phase) {
+    case 'scheduled':
+    case 'inbound':
+      if (f.standId === null && s.time >= f.estArr - STAND_REQ_MIN) return { need: 'stand', since: f.estArr - STAND_REQ_MIN, deadline: f.estArr - 1 };
+      return null;
+    case 'holding':
+      return f.standId === null ? { need: 'stand', since: f.holdingSince, deadline: f.holdingSince + LIMIT.holding } : null;
+    case 'servicing':
+      return f.svc && SERVICES.some((k) => f.svc![k] === undefined) ? { need: 'services', since: f.phaseStart, deadline: f.phaseStart + LIMIT.services } : null;
+    case 'ready':
+      return !f.clrTaxi ? { need: 'taxi', since: f.phaseStart, deadline: Math.max(f.phaseStart, f.schedDep) + LIMIT.taxi } : null;
+    case 'queue':
+      return !f.clrTakeoff ? { need: 'takeoff', since: f.phaseStart, deadline: f.phaseStart + LIMIT.takeoff } : null;
+    default:
+      return null;
+  }
+}
+
+/** Ordre donné à temps : petite hausse de satisfaction de la compagnie. */
+export function ctlGood(s: GameState, f: Flight): void {
+  f.ctlGood = (f.ctlGood ?? 0) + 1;
+  s.ctlStats = s.ctlStats ?? { good: 0, missed: 0 };
+  s.ctlStats.good++;
+  const st = airlineState(s, f.airlineId);
+  st.satisfaction = clamp(st.satisfaction + 0.25, 0, 100);
+}
+
+/** Limite d'assistance dépassée : l'aéroport agit seul, la compagnie est mécontente. */
+function ctlMissed(s: GameState, f: Flight, need: CtlNeed): void {
+  f.ctlMissed = (f.ctlMissed ?? 0) + 1;
+  s.ctlStats = s.ctlStats ?? { good: 0, missed: 0 };
+  s.ctlStats.missed++;
+  const st = airlineState(s, f.airlineId);
+  st.satisfaction = clamp(st.satisfaction - 1.2, 0, 100);
+  addLog(s, 'warn', 'log.ctlMissed', { flight: f.arrNo, action: 'need.' + need });
+}
+
+/** Lance un service au sol (mode contrôleur). */
+export function startService(s: GameState, f: Flight, k: ServiceKind): boolean {
+  if (f.phase !== 'servicing' || !f.svc || f.svc[k] !== undefined) return false;
+  f.svc[k] = s.time + Math.max(2, Math.ceil((f.svcDur ?? 20) * SERVICE_SHARE[k]));
+  if (SERVICES.every((x) => f.svc![x] !== undefined)) ctlGood(s, f);
+  return true;
+}
+
+export function servicesDone(s: GameState, f: Flight): boolean {
+  return !!f.svc && SERVICES.every((k) => f.svc![k] !== undefined && s.time >= f.svc![k]!);
+}
 
 const ACTIVE_PHASES = new Set(['taxi_in', 'deboarding', 'servicing', 'boarding', 'ready', 'taxi_out', 'queue']);
 
@@ -94,11 +161,15 @@ export function hasAnyUsableRunway(s: GameState, aircraftId: string): boolean {
 }
 
 // ---------- Postes et portes ----------
-function gatesInUse(s: GameState): number {
+export function gatesInUse(s: GameState): number {
   return s.flights.filter((f) => f.contact && ACTIVE_PHASES.has(f.phase)).length;
 }
 function standTaken(s: GameState, id: number, self: number): boolean {
   return s.flights.some((f) => f.id !== self && f.standId === id && !['departed', 'diverted', 'cancelled', 'scheduled', 'taxi_out', 'queue', 'takeoff'].includes(f.phase));
+}
+
+export function standTakenBy(s: GameState, standId: number, exceptFlight: number): Flight | undefined {
+  return s.flights.find((f) => f.id !== exceptFlight && f.standId === standId && !['departed', 'diverted', 'cancelled'].includes(f.phase));
 }
 
 function pickStand(s: GameState, w: World, f: Flight): StandInfo | null {
@@ -259,11 +330,13 @@ export function flightsTick(s: GameState): void {
       }
       case 'inbound':
       case 'holding': {
-        if (f.standId === null) {
+        const req = pendingAction(s, f);
+        if (f.standId === null && (!req || now >= req.deadline)) {
           const st = pickStand(s, w, f);
           if (st) {
             f.standId = st.id;
             f.contact = st.contact && w.cap.gates - gatesInUse(s) > 0;
+            if (req) ctlMissed(s, f, 'stand');
           }
         }
         const t = clamp(1 - (f.estArr - now) / APPROACH_MIN, 0, 1);
@@ -356,11 +429,26 @@ export function flightsTick(s: GameState): void {
             if (w.cap.deicing <= 0 && !f.delayReason) f.delayReason = 'delay.deicing';
           }
           if (groundEff < 0.75 && !f.delayReason) f.delayReason = 'delay.staff';
-          setPhase(s, f, 'servicing', now + Math.ceil(dur));
+          if (manual(s)) {
+            // Le joueur lance chaque service.
+            f.svcDur = dur;
+            f.svc = {};
+            setPhase(s, f, 'servicing', 0);
+          } else setPhase(s, f, 'servicing', now + Math.ceil(dur));
         }
         break;
       }
       case 'servicing': {
+        if (f.svc) {
+          const req = pendingAction(s, f);
+          const incomplete = SERVICES.some((k) => f.svc![k] === undefined);
+          // Limite dépassée, ou retour en gestion automatique : services lancés d'office.
+          if (incomplete && (!manual(s) || (req && now >= req.deadline))) {
+            for (const k of SERVICES) if (f.svc[k] === undefined) f.svc[k] = now + Math.max(2, Math.ceil((f.svcDur ?? 20) * SERVICE_SHARE[k]));
+            if (manual(s)) ctlMissed(s, f, 'services');
+          }
+          if (!servicesDone(s, f)) break;
+        }
         if (now >= f.phaseEnd && now >= f.schedDep - 35) {
           const rate = f.contact ? 20 : 12;
           setPhase(s, f, 'boarding', now + Math.max(8, Math.ceil(f.paxDep / rate)));
@@ -375,6 +463,12 @@ export function flightsTick(s: GameState): void {
         break;
       }
       case 'ready': {
+        if (manual(s) && !f.clrTaxi) {
+          const req = pendingAction(s, f);
+          if (!req || now < req.deadline) break;
+          f.clrTaxi = true;
+          ctlMissed(s, f, 'taxi');
+        }
         const st = w.stands.find((x) => x.id === f.standId);
         const runway = pickRunwayForDeparture(s, w, f.aircraft);
         if (st && runway) {
@@ -401,6 +495,12 @@ export function flightsTick(s: GameState): void {
           const alt = pickRunwayForDeparture(s, w, f.aircraft);
           if (alt) f.runwayId = alt.id;
           break;
+        }
+        if (manual(s) && !f.clrTakeoff) {
+          const req = pendingAction(s, f);
+          if (!req || now < req.deadline) break;
+          f.clrTakeoff = true;
+          ctlMissed(s, f, 'takeoff');
         }
         if ((s.runwayBusy[r.id] ?? 0) <= now) {
           s.runwayBusy[r.id] = now + sep;

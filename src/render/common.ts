@@ -141,3 +141,20 @@ export function serviceVehicles(f: Flight, t: number): { x: number; y: number; c
   }
   return out;
 }
+
+/** Trajet restant au sol d'un vol (pour le tracé bleu du vol sélectionné), en cases. */
+export function remainingRoute(f: Flight): { x: number; y: number }[] {
+  const from = (path: { x: number; y: number }[], pos: number): { x: number; y: number }[] => {
+    const out = [{ x: f.pos.x, y: f.pos.y }];
+    let acc = 0;
+    for (let i = 1; i < path.length; i++) {
+      acc += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+      if (acc > pos) out.push(path[i]);
+    }
+    return out;
+  };
+  if (f.phase === 'taxi_in' || f.phase === 'taxi_out') return from(f.path, f.pathPos);
+  if (f.phase === 'landing' && f.plan) return [{ x: f.pos.x, y: f.pos.y }, ...f.plan];
+  if ((f.phase === 'queue' || f.phase === 'takeoff') && f.path.length >= 2) return [{ x: f.pos.x, y: f.pos.y }, f.path[f.path.length - 1]];
+  return [];
+}

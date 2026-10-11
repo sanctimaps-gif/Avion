@@ -3,7 +3,7 @@ import { WEATHER_ICON } from '../data/weather';
 import { clock, money, clamp } from '../core/format';
 import { getLang, setLang, t, type Lang } from '../core/i18n';
 import { canMove, canPlace, checkLine, linePoints, move, place, placeLine, canBuyParcel, buyParcel, parcelPrice } from '../sim/construction';
-import { visibleFlights } from '../sim/flights';
+import { pendingAction, visibleFlights } from '../sim/flights';
 import { activeList } from '../sim/incidents';
 import { onLog } from '../sim/log';
 import { Clock } from '../sim/simulation';
@@ -19,6 +19,8 @@ import { View3D, webglInfo } from '../render/view3d';
 import { LAYERS } from '../render/overlays';
 import { ZOOM_MAX, type Camera, type FrameInfo, type GameView, type Ghost, type Quality, type ViewKind } from '../render/view';
 import { mainInterior } from '../render/interior3d';
+import { renderStrips } from './control';
+import { assignStand, standNo } from '../sim/control';
 import { btn, clear, h } from './dom';
 import { renderPanel, PANELS, type PanelId } from './panels';
 import { selectionCard } from './panels/selection';
@@ -94,12 +96,15 @@ export class App {
   toasts = h('div', { class: 'toasts' });
   panelEl: HTMLElement | null = null;
   fpsEl = h('div', { class: 'fps' });
+  strips = h('div', { class: 'strips' });
+  /** Mode contrôleur : poste choisi dans la fiche, en attente de confirmation. */
+  ctlPick: number | null = null;
 
   async start(): Promise<void> {
     setLang(this.settings.lang);
     this.applyTextSize();
     document.body.append(this.root);
-    this.root.append(this.stage, this.topbar, this.viewbar, this.layerbar, this.nav, this.placebar, this.toasts, this.fpsEl);
+    this.root.append(this.stage, this.topbar, this.viewbar, this.layerbar, this.strips, this.nav, this.placebar, this.toasts, this.fpsEl);
     this.placebar.style.display = 'none';
     this.saves = new SaveManager(await openBestStore());
     // Démarrage direct dans la dernière partie (ou une nouvelle carrière).
@@ -113,7 +118,7 @@ export class App {
       }
     }
     if (!state) {
-      state = createGame({ name: t('default.airportName'), mode: 'career' });
+      state = createGame({ name: t('default.airportName'), mode: 'career', control: 'manual' });
       await this.saves.save(state, this.thumbnail(state));
     }
     this.setGame(state);
@@ -156,6 +161,7 @@ export class App {
     }
     this.closePanel();
     this.updatePlacebar();
+    if (this.view) this.renderViewbar();
     this.renderTop();
   }
 
@@ -294,6 +300,9 @@ export class App {
     this.layerbar.style.top = top + 8 + 'px';
     this.toasts.style.top = top + 8 + (this.viewKind === 'hybrid' || this.viewKind === 'inside' ? 46 : 0) + 'px';
     this.placebar.style.bottom = navH + 10 + 'px';
+    const layersOn = this.viewKind === 'hybrid' || this.viewKind === 'inside';
+    this.strips.style.top = top + 8 + (layersOn ? 46 : 0) + 'px';
+    this.strips.style.maxHeight = `calc(100% - ${top + 8 + (layersOn ? 46 : 0) + navH + 16}px)`;
     this.fpsEl.style.bottom = navH + 8 + 'px';
   }
 
@@ -316,6 +325,7 @@ export class App {
       this.lastHud = now;
       this.renderTop();
       this.updateBadges();
+      renderStrips(this, this.strips);
     }
     if (this.panel && now - this.lastPanelRefresh > 1000 && now - this.touchedAt > 1500 && !this.inputFocused()) {
       this.refreshPanel();
@@ -421,14 +431,20 @@ export class App {
       }
     }
     if (best !== null) {
-      this.selectedFlight = best;
-      this.selectedBuilding = null;
-      this.openPanel('selection');
+      this.selectFlight(best);
       return;
     }
     const w = getWorld(this.s);
     if (tx >= 0 && ty >= 0 && tx < this.s.map.w && ty < this.s.map.h) {
       const id = w.occ[ty * this.s.map.w + tx];
+      // Mode contrôleur : toucher un poste l'attribue au vol sélectionné qui attend un poste.
+      const pend = this.selectedFlight !== null ? this.s.flights.find((f) => f.id === this.selectedFlight) : undefined;
+      if (id && pend && pendingAction(this.s, pend)?.need === 'stand' && w.stands.some((st) => st.id === id)) {
+        if (assignStand(this.s, pend, id)) this.toast(t('ctl.assigned', { f: pend.arrNo, n: standNo(this.s, id) }), 'good');
+        else this.toast(t('ctl.cantStand'), 'bad');
+        this.act();
+        return;
+      }
       if (id) {
         this.selectedBuilding = id;
         this.selectedFlight = null;
@@ -620,6 +636,7 @@ export class App {
       title = t(spec.title);
     }
     const scroll = this.panelEl?.querySelector('.panel-body')?.scrollTop ?? 0;
+    const scrollX = this.panelEl?.querySelector('.standcards')?.scrollLeft ?? 0;
     const el = h('div', { class: 'panel' + (spec.tall ? ' tall' : '') + (id === 'selection' ? ' selcard' : '') },
       h('div', { class: 'grip' }),
       h('div', { class: 'panel-head' }, h('h2', null, title), h('button', { class: 'iconbtn', onclick: () => { this.selectedBuilding = null; this.selectedFlight = null; this.closePanel(); } }, '✕')),
@@ -631,6 +648,8 @@ export class App {
     else this.root.append(el);
     this.panelEl = el;
     if (!fresh) el.querySelector('.panel-body')!.scrollTop = scroll;
+    const sc = el.querySelector('.standcards');
+    if (sc && scrollX) sc.scrollLeft = scrollX;
     else el.style.animation = '';
     if (!fresh) el.style.animation = 'none';
   }
@@ -702,6 +721,14 @@ export class App {
     if (this.viewKind === '3d' || this.viewKind === 'inside' || this.viewKind === 'iso') {
       this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => { this.cam.rot += Math.PI / 2; }, title: t('ui.rotate') }, '⟳'));
     }
+    const ctlOn = this.s?.settings.control === 'manual';
+    this.viewbar.append(h('button', { class: 'iconbtn' + (ctlOn ? ' active' : ''), title: t('ctl.mode') + ' : ' + t(ctlOn ? 'ctl.manual' : 'ctl.auto'), onclick: () => {
+      this.s.settings.control = ctlOn ? 'auto' : 'manual';
+      this.toast(t('ctl.mode') + ' : ' + t(ctlOn ? 'ctl.auto' : 'ctl.manual'), 'info');
+      this.renderViewbar();
+      renderStrips(this, this.strips);
+      this.act();
+    } }, '🎧'));
     this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => this.view.zoom(this.cam, 1.25, innerWidth / 2, innerHeight / 2, this.s) }, '＋'));
     this.viewbar.append(h('button', { class: 'iconbtn', onclick: () => this.view.zoom(this.cam, 0.8, innerWidth / 2, innerHeight / 2, this.s) }, '－'));
   }
@@ -812,6 +839,17 @@ export class App {
     if (!this.s) return;
     this.cam.cx = clamp(this.cam.cx, 0, this.s.map.w);
     this.cam.cy = clamp(this.cam.cy, 0, this.s.map.h);
+  }
+
+  /** Sélectionne un vol (strip ou carte) ; `focus` centre la caméra dessus. */
+  selectFlight(id: number, focus = false): void {
+    this.selectedFlight = id;
+    this.selectedBuilding = null;
+    this.ctlPick = null;
+    const f = this.s.flights.find((x) => x.id === id);
+    if (focus && f && f.phase !== 'scheduled') this.centerOn(f.pos.x, f.pos.y);
+    this.openPanel('selection');
+    renderStrips(this, this.strips);
   }
 
   centerOn(x: number, y: number): void {

@@ -87,6 +87,19 @@ await page.locator('.panel .btn', { hasText: 'Accepter' }).first().click();
 check('offre acceptée', (await page.evaluate(() => window.game.s.contracts.length)) === c0 + 1);
 await page.screenshot({ path: `${out}/23-fr.png` });
 
+// Mode contrôleur (activé par défaut dans une nouvelle partie) : colonne des vols, ordre de poste
+check('mode contrôleur actif', (await page.evaluate(() => window.game.s.settings.control)) === 'manual' && (await page.locator('.strips').isVisible()));
+await page.evaluate(() => { const g = window.game; for (let i = 0; i < 4000 && !document.querySelector('.strip.need, .strip.urgent'); i++) { g.clock.advance(g.s, 0.25, undefined, 1); if (i % 20 === 0) g.act(); } });
+await page.waitForTimeout(400);
+await page.evaluate(() => document.querySelector('.strip.need, .strip.urgent')?.click());
+await page.waitForTimeout(400);
+await page.evaluate(() => document.querySelector('.standcard:not(.off)')?.click());
+await page.waitForTimeout(300);
+await page.evaluate(() => [...document.querySelectorAll('.ctl .btn')].find((b) => b.textContent.includes('Confirmer'))?.click());
+await page.waitForTimeout(300);
+check('poste attribué par le joueur', (await page.evaluate(() => window.game.s.flights.find((f) => f.id === window.game.selectedFlight)?.standId ?? null)) !== null);
+await page.screenshot({ path: `${out}/25-controleur.png` });
+
 // Vue intérieure (aérogare en coupe, foule)
 await page.keyboard.press('Escape');
 await page.locator('.viewbar button', { hasText: 'INT' }).click();

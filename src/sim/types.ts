@@ -218,7 +218,18 @@ export interface Flight {
   checked?: boolean;
   /** Itinéraire de roulage prévu après l'atterrissage. */
   plan?: Pt[];
+  /** Mode contrôleur : services au sol lancés (minute de fin) et durée de base. */
+  svc?: Partial<Record<ServiceKind, number>>;
+  svcDur?: number;
+  /** Mode contrôleur : autorisations données. */
+  clrTaxi?: boolean;
+  clrTakeoff?: boolean;
+  /** Mode contrôleur : ordres donnés à temps / pris en charge automatiquement. */
+  ctlGood?: number;
+  ctlMissed?: number;
 }
+
+export type ServiceKind = 'fuel' | 'bags' | 'catering' | 'cleaning';
 
 export interface PaxCohort {
   flightId: number;
@@ -325,6 +336,8 @@ export interface GameSettings {
   unlimitedMoney: boolean;
   allUnlocked: boolean;
   startCash: number;
+  /** « manual » : mode contrôleur (le joueur attribue les postes, lance les services, autorise roulage et décollage). */
+  control?: 'auto' | 'manual';
 }
 
 export interface ChallengeState {
@@ -381,6 +394,8 @@ export interface GameState {
   runwayBusy: Record<number, number>;
   /** Compteurs opérationnels de la journée en cours. */
   dayCounters: { onTime: number; delayed: number; cancelled: number; diverted: number; movements: number };
+  /** Mode contrôleur : ordres donnés à temps / manqués (depuis le début de la partie). */
+  ctlStats?: { good: number; missed: number };
   totals: { pax: number; movements: number; days: number };
   /** Incidents imposés par un scénario. */
   forced: { type: string; day: number; dur: number }[];
