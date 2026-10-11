@@ -1,0 +1,45 @@
+<!doctype html><html><body>
+<canvas id="c" width="1600" height="640"></canvas>
+<script type="importmap">{"imports":{"three":"./nm/three/build/three.module.js","three/addons/":"./nm/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const tl = new THREE.TextureLoader();
+const tex = async (p) => { const t = await tl.loadAsync(p); t.colorSpace = THREE.SRGBColorSpace; return t; };
+const glb = async (p) => (await new GLTFLoader().loadAsync(p)).scene;
+const only = new URLSearchParams(location.search).get('only');
+const items = {
+  b777: async () => { const o = await new FBXLoader().setResourcePath('air-canada-boeing-777-200lr/source/x/').loadAsync('air-canada-boeing-777-200lr/source/x/TFS_B777-300_RR_FSX.fbx'); const names = new Set(); o.traverse(m => { if (m.isMesh) [].concat(m.material).forEach(x => names.add(x.name + ':' + (x.map?.image?.src?.split('/').pop() ?? '-'))); }); window.names777 = [...names]; return o; },
+  gpu: async () => { const o = await new OBJLoader().loadAsync('gpu-aiport-ground-power-unit/x/source/gpu.obj'); const t = await tex('gpu-aiport-ground-power-unit/x/texture/GPU_ext.png'); o.traverse(m => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ map: t, roughness: 0.6 }); }); return o; },
+  jetway: async () => glb('jetway-vr-scaled/source/jetway.glb'),
+  mat: async () => glb('glare-shielded-highmast/source/Evolve Glare highmast.glb'),
+  loco: async () => glb('general-electric-es44ac-black/source/General Electric ES44AC Black.glb'),
+  merco: async () => glb('1990-mercedes-benz-190e-25-16-evolution-ii/source/1990 Mercedes-Benz 190 Evo II.glb'),
+  ferrari: async () => glb('1962-ferrari-250-gto/source/1962 Ferrari 250 GTO.glb'),
+  shelby: async () => glb('1965-shelby-gt350/source/1965 Shelby GT350.glb'),
+  moto: async () => glb('2024-ducati-streetfighter-v4-s/source/2024 Ducati StreetFighter V4 S.glb'),
+};
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), preserveDrawingBuffer: true, antialias: true });
+r.setScissorTest(true); r.setClearColor('#eef2f6'); r.clear();
+const out = {}, info = {}; let i = 0;
+for (const [name, load] of Object.entries(items)) {
+  if (only && !only.split(',').includes(name)) continue;
+  try {
+  const o = await load(); await new Promise(r => setTimeout(r, 2500));
+  o.traverse(m => { if (!m.isMesh) return; m.material = [].concat(m.material).map(x => x.isMeshStandardMaterial ? x : new THREE.MeshStandardMaterial({ name: x.name, color: x.color, map: x.map ?? null, roughness: 0.6, transparent: x.transparent, opacity: x.opacity })); if (m.material.length === 1) m.material = m.material[0]; });
+  let tris = 0; const mats = new Set(); o.traverse(m => { if (m.isMesh) { tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; [].concat(m.material).forEach(x => mats.add(x.name)); } });
+  const box = new THREE.Box3().setFromObject(o, true); const s = box.getSize(new THREE.Vector3()); const c = box.getCenter(new THREE.Vector3());
+  info[name] = [Math.round(tris), s.toArray().map(v => +v.toFixed(2)), [...mats].slice(0, 30)];
+  const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x667788, 2.4)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(1, 2, 1.5); scene.add(d); scene.add(o);
+  const L = s.length(); const cam = new THREE.PerspectiveCamera(40, 1, L / 1000, L * 10); cam.position.set(c.x + L * 0.6, c.y + L * 0.5, c.z + L * 0.7); cam.lookAt(c);
+  const W = 320, x = (i % 5) * W, y = Math.floor(i / 5) * W; r.setViewport(x, 640 - y - W, W, W); r.setScissor(x, 640 - y - W, W, W); r.render(scene, cam); i++;
+  const bin8 = new Uint8Array(await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 2048 }));
+  let bin = ''; for (let k = 0; k < bin8.length; k += 0x8000) bin += String.fromCharCode.apply(null, bin8.subarray(k, k + 0x8000));
+  out[name] = btoa(bin);
+  } catch (e) { info[name] = String(e).slice(0, 200); }
+}
+window.done = { out, info, names: window.names777 };
+</script></body></html>

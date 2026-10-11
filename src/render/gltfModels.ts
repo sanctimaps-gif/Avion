@@ -29,6 +29,14 @@ import q400Url from '../assets/models/sketchfab/q400.glb?url';
 import beltUrl from '../assets/models/sketchfab/tapis_bagages.glb?url';
 import cateringUrl from '../assets/models/sketchfab/catering.glb?url';
 import carS13Url from '../assets/models/sketchfab/voiture_s13.glb?url';
+import b777Url from '../assets/models/sketchfab/b777.glb?url';
+import gpuUrl from '../assets/models/sketchfab/gpu.glb?url';
+import jetwayUrl from '../assets/models/sketchfab/passerelle.glb?url';
+import locoUrl from '../assets/models/sketchfab/locomotive.glb?url';
+import carMercoUrl from '../assets/models/sketchfab/voiture_merco.glb?url';
+import carFerrariUrl from '../assets/models/sketchfab/voiture_ferrari.glb?url';
+import carShelbyUrl from '../assets/models/sketchfab/voiture_shelby.glb?url';
+import motoUrl from '../assets/models/sketchfab/moto.glb?url';
 import a380Url from '../assets/models/sketchfab/a380.glb?url';
 import powerUrl from '../assets/models/sketchfab/centrale.glb?url';
 import fuelStationUrl from '../assets/models/sketchfab/station.glb?url';
@@ -87,6 +95,14 @@ const SOURCES: Record<string, string> = {
   foret: forestUrl,
   a380: a380Url,
   q400: q400Url,
+  b777: b777Url,
+  gpu: gpuUrl,
+  passerelle: jetwayUrl,
+  locomotive: locoUrl,
+  voiture_merco: carMercoUrl,
+  voiture_ferrari: carFerrariUrl,
+  voiture_shelby: carShelbyUrl,
+  moto: motoUrl,
   tapis_bagages: beltUrl,
   catering: cateringUrl,
   voiture_s13: carS13Url,
@@ -140,6 +156,21 @@ export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[]
     parts.push({ geometry: m.geometry, material, matrix: base.clone().multiply(m.matrixWorld), tint });
   });
   return parts;
+}
+
+/** Passerelle télescopique importée : de l'origine (rotonde, côté terminal) vers +X, longueur `len` cases. */
+export function importedJetway(len: number): THREE.Object3D | null {
+  const t = templates.get('passerelle');
+  if (!t) return null;
+  const inner = t.obj.clone(true);
+  const size = t.box.getSize(new THREE.Vector3());
+  const c = t.box.getCenter(new THREE.Vector3());
+  inner.position.set(-t.box.min.x, -t.box.min.y, -c.z);
+  const g = new THREE.Group();
+  g.add(inner);
+  const k = len / size.x;
+  g.scale.set(k, Math.min(k, 0.75 / size.y), k);
+  return g;
 }
 
 /**
@@ -199,11 +230,11 @@ const AIRCRAFT_MODELS: Record<string, string> = {
   nb180: 'moyen_courrier',
   nb220: 'a320',
   wb300: 'a330',
-  wb380: 'a330',
+  wb380: 'b777',
   sj550: 'a380',
 };
 /** Direction du nez dans le modèle (par défaut +Z). */
-const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion3_bs: '-X', a380: '-X' };
+const NOSE: Record<string, '+X' | '-X' | '+Z' | '-Z'> = { avion3_bs: '-X', a380: '-X', b777: '-Z' };
 /** Matériaux portant la couleur de la compagnie. */
 const LIVERY = new Set(['red', 'blue', 'navy']);
 
@@ -361,13 +392,13 @@ export function importedAircraft(aircraft: string, length: number, color: string
   });
   const size = t.box.getSize(new THREE.Vector3());
   const nose = NOSE[name] ?? '+Z';
-  const sc = length / (nose === '+Z' ? size.z : size.x);
+  const sc = length / (nose === '+Z' || nose === '-Z' ? size.z : size.x);
   const holder = new THREE.Group();
   inner.position.y = -t.box.min.y;
   holder.add(inner);
   holder.scale.setScalar(sc);
   // Nez du modèle orienté vers +X (convention du jeu).
-  holder.rotation.y = nose === '+Z' ? Math.PI / 2 : nose === '-X' ? Math.PI : 0;
+  holder.rotation.y = nose === '+Z' ? Math.PI / 2 : nose === '-Z' ? -Math.PI / 2 : nose === '-X' ? Math.PI : 0;
   const obj = new THREE.Group();
   obj.add(holder);
   const props = ['helice_gauche', 'helice_droite'].map((n) => inner.getObjectByName(n)).filter((x): x is THREE.Object3D => !!x);

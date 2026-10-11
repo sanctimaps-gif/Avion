@@ -11,6 +11,16 @@ const [inDir, outDir, only] = process.argv.slice(2);
 // ratio : part de triangles gardée ; tex : taille max des textures ; loose : simplification sans normales
 // len : longueur cible en mètres selon l'axe long (véhicules) ; rotY : rotation (rad) ; copies : [n, pas en m] le long de X
 const JOBS = {
+  // Lot 6
+  gpu: { src: 'gpu.glb', ratio: 0.25, tex: 512, len: 2.9 },
+  passerelle: { src: 'jetway.glb', ratio: 0.5, tex: 256 },
+  mat_eclairage: { src: 'mat.glb', ratio: 0.0012, tex: 128, loose: true, err: 0.4 },
+  locomotive: { src: 'loco.glb', ratio: 0.3, tex: 512, len: 21.8 },
+  voiture_merco: { src: 'merco.glb', ratio: 0.06, tex: 256, loose: true, bake: true, len: 4.45 },
+  voiture_ferrari: { src: 'ferrari.glb', ratio: 0.05, tex: 256, loose: true, bake: true, len: 4.3 },
+  voiture_shelby: { src: 'shelby.glb', ratio: 0.007, tex: 256, loose: true, bake: true, len: 4.6 },
+  moto: { src: 'moto.glb', ratio: 0.03, tex: 256, loose: true, bake: true, len: 2.1 },
+  b777: { src: 'b777.glb', ratio: 1, tex: 1024, rotX: -90, texturedName: 'livtex', untexturedColor: [0.85, 0.86, 0.87], texSet: '../exp6/livery_777.png' },
   // Mobilier de la vue intérieure (Airport Pack Total), couleurs de sommets
   int_comptoir: { src: 'comptoir.glb', ratio: 0.12, tex: 64, loose: true, bake: true, err: 0.05 },
   int_surete: { src: 'surete.glb', ratio: 0.1, tex: 64, loose: true, bake: true, err: 0.05 },
@@ -127,6 +137,17 @@ for (const [out, j] of Object.entries(JOBS)) {
   }
   for (const mt of doc.getRoot().listMaterials()) { mt.setNormalTexture(null); mt.setOcclusionTexture(null); }
   const sc = doc.getRoot().getDefaultScene();
+  if (j.rotX) {
+    const a = (j.rotX * Math.PI) / 180;
+    const pivot = doc.createNode('rotX').setRotation([Math.sin(a / 2), 0, 0, Math.cos(a / 2)]);
+    for (const c of sc.listChildren()) { sc.removeChild(c); pivot.addChild(c); }
+    sc.addChild(pivot); await doc.transform(flatten());
+  }
+  if (j.texturedName) for (const m of doc.getRoot().listMaterials()) {
+    if (m.getBaseColorTexture()) { m.setName(j.texturedName); m.setBaseColorFactor([1, 1, 1, 1]); }
+    else if (j.untexturedColor) m.setBaseColorFactor([...j.untexturedColor, 1]);
+    m.setMetallicFactor(0.1); m.setRoughnessFactor(0.5);
+  }
   if (j.align) {
     // Modèle tourné dans son fichier : axe principal (ACP sur X/Z) aligné sur Z.
     let n = 0, mx = 0, mz = 0, sxx = 0, szz = 0, sxz = 0; const pts = [];
@@ -165,6 +186,7 @@ for (const [out, j] of Object.entries(JOBS)) {
     if (j.frontAtOrigin) { const zmax = gb(sc).max[2]; for (const c of sc.listChildren()) { const t = c.getTranslation(); c.setTranslation([t[0], t[1], t[2] - zmax]); } }
   }
   await doc.transform(textureCompress({ encoder: sharp, resize: [j.tex, j.tex] }), ...(j.swapTex ? [] : [textureCompress({ encoder: sharp, targetFormat: 'jpeg' })]), prune(), quantize());
+  if (j.texSet) { const buf = await readFile(j.texSet); for (const tx of doc.getRoot().listTextures()) { tx.setImage(new Uint8Array(buf)); tx.setMimeType('image/png'); } }
   // (après la compression : celle-ci retirerait l'alpha d'un matériau opaque)
   if (j.swapTex) {
     // Textures RGBA (masque de livrée dans l'alpha) : le navigateur les a exportées sans alpha ;

@@ -15,6 +15,12 @@ export type VehicleModel =
   | 'voiture_s13'
   | 'tapis_bagages'
   | 'catering'
+  | 'gpu'
+  | 'locomotive'
+  | 'voiture_merco'
+  | 'voiture_ferrari'
+  | 'voiture_shelby'
+  | 'moto'
   | 'camion_citerne'
   | 'tracteur_repoussage'
   | 'train_bagages'
@@ -32,6 +38,12 @@ const CAPACITY: Record<VehicleModel, number> = {
   voiture_s13: 90,
   tapis_bagages: 16,
   catering: 16,
+  gpu: 24,
+  locomotive: 2,
+  voiture_merco: 40,
+  voiture_ferrari: 30,
+  voiture_shelby: 30,
+  moto: 30,
   camion_citerne: 24,
   tracteur_repoussage: 16,
   train_bagages: 24,

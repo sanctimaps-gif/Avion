@@ -61,3 +61,19 @@ et « airport_final_big_scene » (déjà intégrés).
 
 Non utilisés : « terminal » (bâtiment en ruine, 336 000 triangles), « airport_final_big_scene », « aircraft_hangar »,
 « airport-transport-pack » (déjà intégrés), « bicolour_gravel » (texture de sol, gardée pour la refonte du sol).
+
+## Lot 6
+
+| Fichier | Source | Licence |
+|---|---|---|
+| `b777.glb` (WB-380) | « Air Canada Boeing 777-200LR » (TFS, FBX converti par `scripts/fbx2glb.cjs`) | archive sans licence ; livrée Air Canada retirée (textes effacés, dérive aux couleurs des compagnies) |
+| `gpu.glb` (groupe électrique de parc) | « GPU airport ground power unit » | archive sans licence |
+| `passerelle.glb` (passerelle télescopique) | « jetway VR scaled » | archive sans licence |
+| `locomotive.glb` | « General Electric ES44AC Black » | archive sans licence |
+| `voiture_merco.glb`, `voiture_ferrari.glb`, `voiture_shelby.glb`, `moto.glb` | 1990 Mercedes 190E Evo II, 1962 Ferrari 250 GTO, 1965 Shelby GT350, 2024 Ducati Streetfighter V4 S | archives sans licence |
+| `../../textures/detail_beton.jpg`, `detail_asphalte.jpg` | « tiles_0042 », « painted-worn-asphalt » (grain uniquement, en niveaux de gris) | archives sans licence |
+
+Non utilisés : 747-400 British Airways et Air Force One (CC-BY-NC-SA, très lourds ; l'A380 couvre déjà le très gros
+porteur), A330-200 Aer Lingus (l'A330-300 est déjà intégré), MD-11F (pas de vols cargo), Bentley (CC-BY-NC-SA, 23 Mo),
+locomotive VL85 (18 Mo), mât d'éclairage (1,4 million de triangles), PassengerBridge.skp (format SketchUp illisible ici),
+terminal (déjà écarté), petits objets de l'Airport Pack (déjà intégrés), graviers (pas de surface correspondante).

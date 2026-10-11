@@ -19,11 +19,13 @@ import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type Vi
 const TEX_PX = 24;
 
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
-import { hasOwnJetways, importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
+import { hasOwnJetways, importedAircraft, importedBuilding, importedJetway, loadModels, modelsLoaded } from './gltfModels';
 import { Environment } from './env3d';
 import { VehicleFleet } from './vehicles3d';
 import { WEATHER } from '../data/weather';
 import { activeList } from '../sim/incidents';
+import detailAsphaltUrl from '../assets/textures/detail_asphalte.jpg?url';
+import detailConcreteUrl from '../assets/textures/detail_beton.jpg?url';
 import { Crowd, forgetInterior, INTERIOR, interiorBuilding, interiorNightMats } from './interior3d';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
@@ -40,6 +42,9 @@ export function webglInfo(): { webgl2: boolean; renderer: string } {
     return { webgl2: false, renderer: '' };
   }
 }
+
+/** Modèles de la circulation routière (variété). */
+const CARS = ['voiture', 'voiture_s13', 'voiture_merco', 'voiture', 'voiture_s13', 'voiture_ferrari', 'voiture_shelby', 'moto'] as const;
 
 export class View3D implements GameView {
   kind: ViewKind = '3d';
@@ -125,7 +130,9 @@ export class View3D implements GameView {
     this.groundTex = new THREE.CanvasTexture(this.groundCanvas);
     this.groundTex.colorSpace = THREE.SRGBColorSpace;
     this.groundTex.anisotropy = 4;
-    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ map: this.groundTex, roughness: 0.95 }));
+    const groundMat = new THREE.MeshStandardMaterial({ map: this.groundTex, roughness: 0.95 });
+    this.setupGroundDetail(groundMat);
+    this.ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), groundMat);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
@@ -182,6 +189,69 @@ export class View3D implements GameView {
   dispose(): void {
     this.renderer.dispose();
     this.canvas.remove();
+  }
+
+  /**
+   * Grain photographique du sol : asphalte sur pistes, taxiways et routes, dalles de béton
+   * sur les postes. Un masque (1 pixel par case) dit quelle texture appliquer ; les
+   * textures de détail (moyenne 0,5) modulent la couleur du sol dessiné, marquages compris.
+   */
+  private surfData = new Uint8Array(4);
+  private surfTex = new THREE.DataTexture(this.surfData, 1, 1);
+  private groundUniforms = { uSurf: { value: this.surfTex as THREE.Texture }, uAsph: { value: null as THREE.Texture | null }, uConc: { value: null as THREE.Texture | null }, uMapSize: { value: new THREE.Vector2(96, 72) } };
+  private setupGroundDetail(m: THREE.MeshStandardMaterial): void {
+    const load = (url: string) => {
+      const t = new THREE.TextureLoader().load(url);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = 4;
+      return t;
+    };
+    this.groundUniforms.uAsph.value = load(detailAsphaltUrl);
+    this.groundUniforms.uConc.value = load(detailConcreteUrl);
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, this.groundUniforms);
+      sh.fragmentShader = 'uniform sampler2D uSurf; uniform sampler2D uAsph; uniform sampler2D uConc; uniform vec2 uMapSize;\n' + sh.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        #ifdef USE_MAP
+          vec2 surf = texture2D( uSurf, vMapUv ).rg;
+          vec2 wp = vMapUv * uMapSize;
+          float da = texture2D( uAsph, wp / 2.0 ).r * 2.0;
+          float dc = texture2D( uConc, wp / 3.0 ).r * 2.0;
+          diffuseColor.rgb *= mix( 1.0, da, surf.r * 0.7 ) * mix( 1.0, dc, surf.g * 0.45 );
+        #endif`,
+      );
+    };
+  }
+
+  private updateSurfaceMask(s: GameState): void {
+    const W = s.map.w;
+    const H = s.map.h;
+    if (this.surfData.length !== W * H * 4) {
+      this.surfData = new Uint8Array(W * H * 4);
+      this.surfTex.dispose();
+      this.surfTex = new THREE.DataTexture(this.surfData, W, H);
+      this.surfTex.magFilter = THREE.NearestFilter;
+      this.surfTex.minFilter = THREE.NearestFilter;
+      this.groundUniforms.uSurf.value = this.surfTex;
+      this.groundUniforms.uMapSize.value.set(W, H);
+    }
+    this.surfData.fill(0);
+    for (const b of s.buildings) {
+      const t = b.type;
+      const asph = t.startsWith('runway') || t === 'taxiway' || t === 'road' || t === 'parking_s';
+      const conc = t.startsWith('stand') || t === 'deicing';
+      if (!asph && !conc) continue;
+      const f = bFootprint(b);
+      for (let y = b.y; y < b.y + f.h; y++) for (let x = b.x; x < b.x + f.w; x++) {
+        if (x < 0 || y < 0 || x >= W || y >= H) continue;
+        // Ligne 0 de la texture = bas du sol (v = 0) : on inverse y.
+        const i = ((H - 1 - y) * W + x) * 4;
+        this.surfData[i] = asph ? 255 : 0;
+        this.surfData[i + 1] = conc ? 255 : 0;
+      }
+    }
+    this.surfTex.needsUpdate = true;
   }
 
   /** Passe en vue intérieure (ou en revient) : les bâtiments concernés sont redessinés. */
@@ -285,7 +355,7 @@ export class View3D implements GameView {
       // Le terminal importé de base possède déjà ses passerelles.
       if (hasOwnJetways(w.byId.get(w.occ[hit[1] * W + hit[0]])!.type)) return null;
       const g = new THREE.Group();
-      const jw = jetway(Math.min(f.w, f.h) * 0.42);
+      const jw = importedJetway(Math.min(f.w, f.h) * 0.42) ?? jetway(Math.min(f.w, f.h) * 0.42);
       // La passerelle part du bord du terminal vers le centre du poste.
       const cx = b.x + f.w / 2;
       const cz = b.y + f.h / 2;
@@ -442,7 +512,7 @@ export class View3D implements GameView {
       const z = vertical ? b.y + ph : b.y + 0.35;
       const color = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af'][i % 6];
       if (useFleet) {
-        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : i % 2 ? 'voiture_s13' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
+        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : CARS[i % CARS.length], x, z, vertical ? Math.PI / 2 : 0, color);
         continue;
       }
       m.makeTranslation(x, 0.13, z);
@@ -452,7 +522,7 @@ export class View3D implements GameView {
     }
     if (useFleet) {
       this.staticFleet(s, fi.realTime);
-      this.env.highwayPoses(fi.realTime).forEach((c, k) => this.fleet.add(k % 2 ? 'voiture_s13' : 'voiture', c.x, c.z, c.hdg, c.color));
+      this.env.highwayPoses(fi.realTime).forEach((c, k) => this.fleet.add(CARS[(k * 3) % CARS.length], c.x, c.z, c.hdg, c.color));
       this.fleet.end();
     }
     this.env.boxCars = !useFleet;
@@ -476,6 +546,12 @@ export class View3D implements GameView {
       return;
     }
     const deice = s.settings.weather && WEATHER[s.weather.current.kind].needsDeicing && getWorld(s).cap.deicing > 0;
+    if (f.phase === 'servicing' || f.phase === 'deboarding' || f.phase === 'boarding') {
+      // Groupe électrique de parc branché sous le nez pendant toute l'escale.
+      const gx = p.x + Math.cos(p.hdg) * a.length * 0.36 + Math.sin(p.hdg) * a.length * 0.1;
+      const gy = p.y + Math.sin(p.hdg) * a.length * 0.36 - Math.cos(p.hdg) * a.length * 0.1;
+      this.fleet.add('gpu', gx, gy, p.hdg + Math.PI / 2);
+    }
     if (f.phase === 'servicing') {
       // Chaque service a son véhicule à sa place autour de l'avion ; en mode contrôleur,
       // seuls les services lancés et en cours sont visibles.
@@ -540,7 +616,10 @@ export class View3D implements GameView {
         const ph = Math.sin(t * 0.00015 + b.id) * 0.5 + 0.5;
         const x = along ? b.x + f.w * (0.15 + 0.7 * ph) : b.x + f.w - 0.5;
         const z = along ? b.y + f.h - 0.5 : b.y + f.h * (0.15 + 0.7 * ph);
-        this.fleet.add('train', x, z, along ? 0 : Math.PI / 2);
+        const h = along ? 0 : Math.PI / 2;
+        // Locomotive en tête (21,8 m ≈ 2 cases), voitures derrière.
+        this.fleet.add('locomotive', x + Math.cos(h) * 0.99, z + Math.sin(h) * 0.99, h);
+        this.fleet.add('train', x, z, h);
       }
     }
     if (snow) {
@@ -714,6 +793,7 @@ export class View3D implements GameView {
       const ctx = this.groundCanvas.getContext('2d')!;
       drawGround(ctx, s, (x, y) => [x * TEX_PX, y * TEX_PX], TEX_PX, '3d');
       this.groundTex.needsUpdate = true;
+      this.updateSurfaceMask(s);
       this.ground.scale.set(s.map.w, s.map.h, 1);
       this.ground.position.set(s.map.w / 2, 0, s.map.h / 2);
       this.syncRunwayLights(s);
