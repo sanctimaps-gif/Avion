@@ -26,6 +26,7 @@ import { WEATHER } from '../data/weather';
 import { activeList } from '../sim/incidents';
 import detailAsphaltUrl from '../assets/textures/detail_asphalte.jpg?url';
 import detailConcreteUrl from '../assets/textures/detail_beton.jpg?url';
+import { Traffic } from './traffic';
 import { Crowd, forgetInterior, INTERIOR, interiorBuilding, interiorNightMats } from './interior3d';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
@@ -43,6 +44,7 @@ export function webglInfo(): { webgl2: boolean; renderer: string } {
   }
 }
 
+const CAR_COLORS = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af', '#16a34a', '#7c3aed'];
 /** Modèles de la circulation routière (variété). */
 const CARS = ['voiture', 'voiture_s13', 'voiture_merco', 'voiture', 'voiture_s13', 'voiture_ferrari', 'voiture_shelby', 'moto'] as const;
 
@@ -52,6 +54,9 @@ export class View3D implements GameView {
   interior = false;
   private crowd = new Crowd();
   private interiorIds: number[] = [];
+  private traffic = new Traffic();
+  private portals = new THREE.Group();
+  private portalKey = '';
   /** Tracé bleu du roulage du vol sélectionné. */
   private route = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: '#2563eb', transparent: true, opacity: 0.85, depthWrite: false }));
   private routeKey = '';
@@ -142,6 +147,7 @@ export class View3D implements GameView {
     this.scene.add(this.crowd.group);
     this.route.renderOrder = 2;
     this.scene.add(this.route);
+    this.scene.add(this.portals);
 
     this.vehicles = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.25, 0.22), new THREE.MeshStandardMaterial({ color: '#ffffff' }), 400);
     this.vehicles.count = 0;
@@ -498,24 +504,18 @@ export class View3D implements GameView {
         }
       } else this.serviceFleet(s, f, p, fi.realTime);
     }
-    // Véhicules sur les routes
-    const w = getWorld(s);
-    const density = clamp(s.pax.live.inTerminal / 400, 0.05, 1);
-    let i = 0;
-    for (const b of s.buildings) {
-      if (b.type !== 'road' || !w.roadOk[b.y * s.map.w + b.x]) continue;
-      i++;
-      if ((i * 7919) % 100 > density * 100 || vi >= 400) continue;
-      const ph = (fi.realTime * 0.0008 + i * 0.37) % 1;
-      const vertical = w.byId.get(w.occ[Math.max(0, b.y - 1) * s.map.w + b.x])?.type === 'road' || w.byId.get(w.occ[Math.min(s.map.h - 1, b.y + 1) * s.map.w + b.x])?.type === 'road';
-      const x = vertical ? b.x + 0.35 : b.x + ph;
-      const z = vertical ? b.y + ph : b.y + 0.35;
-      const color = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af'][i % 6];
+    // Circulation routière : trajets sur le réseau, tunnels et parkings souterrains.
+    this.traffic.update(s, fi.realTime, fi.simSpeed ?? 1);
+    this.syncPortals(s);
+    for (const c of this.traffic.poses()) {
+      const color = CAR_COLORS[c.seed % CAR_COLORS.length];
       if (useFleet) {
-        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : CARS[i % CARS.length], x, z, vertical ? Math.PI / 2 : 0, color);
+        const model = c.kind === 'bus' ? 'bus' : c.kind === 'taxi' ? 'voiture' : c.seed % 23 === 0 ? 'police' : CARS[c.seed % CARS.length];
+        this.fleet.add(model, c.x, c.y, c.hdg, c.kind === 'taxi' ? '#facc15' : color, c.h);
         continue;
       }
-      m.makeTranslation(x, 0.13, z);
+      if (vi >= 400) continue;
+      m.makeRotationY(-c.hdg).setPosition(c.x, 0.13 + c.h, c.y);
       this.vehicles.setMatrixAt(vi, m);
       this.vehicles.setColorAt(vi, col.set(color));
       vi++;
@@ -737,6 +737,57 @@ export class View3D implements GameView {
         m.position.set(px * p + p / 2, 0.06, py * p + p / 2);
         this.parcels.add(m);
       }
+    }
+  }
+
+  /** Entrées de tunnel et rampes de parking souterrain (là où les véhicules disparaissent). */
+  private syncPortals(s: GameState): void {
+    const key = this.traffic.portals.map((p) => `${p.kind}${p.x},${p.y}`).join(';') + s.id;
+    if (key === this.portalKey) return;
+    this.portalKey = key;
+    this.portals.clear();
+    const concrete = mat('#a8a29e', {}, 'portal');
+    const dark = mat('#0b0f14', { roughness: 1 }, 'portalDark');
+    const stripe = mat('#facc15', {}, 'portalStripe');
+    const boxG = geo('box', () => new THREE.BoxGeometry(1, 1, 1));
+    for (const p of this.traffic.portals) {
+      const g = new THREE.Group();
+      // Repère local : +Z = sens de la descente.
+      g.rotation.y = Math.atan2(p.dx, p.dy);
+      const tunnel = p.kind === 'tunnel';
+      const w = 0.95;
+      const d = tunnel ? 0.9 : 0.95;
+      // Fond sombre de la trémie (au ras du sol) et murets latéraux
+      const pit = new THREE.Mesh(boxG, dark);
+      pit.scale.set(w * 0.9, 0.01, d);
+      pit.position.set(0, 0.012, d / 2);
+      g.add(pit);
+      for (const sx of [-1, 1]) {
+        const wall = new THREE.Mesh(boxG, concrete);
+        wall.scale.set(0.06, 0.12, d);
+        wall.position.set((sx * w) / 2, 0.06, d / 2);
+        wall.castShadow = true;
+        g.add(wall);
+      }
+      // Portique d'entrée (tunnel : linteau de béton ; parking : panneau « P »)
+      const lintel = new THREE.Mesh(boxG, concrete);
+      lintel.scale.set(w + 0.06, tunnel ? 0.22 : 0.08, 0.12);
+      lintel.position.set(0, tunnel ? 0.3 : 0.32, d);
+      lintel.castShadow = true;
+      g.add(lintel);
+      const band = new THREE.Mesh(boxG, tunnel ? stripe : mat('#1d4ed8', { emissive: new THREE.Color('#1d4ed8'), emissiveIntensity: 0.4 }, 'portalP'));
+      band.scale.set(tunnel ? w : 0.22, tunnel ? 0.04 : 0.18, 0.13);
+      band.position.set(0, tunnel ? 0.22 : 0.45, d);
+      g.add(band);
+      if (tunnel) {
+        const back = new THREE.Mesh(boxG, dark);
+        back.scale.set(w, 0.3, 0.02);
+        back.position.set(0, 0.15, d + 0.07);
+        g.add(back);
+      }
+      // Point de départ de la rampe : 0,9 case avant le point sous terre.
+      g.position.set(p.x - p.dx * 0.9, 0, p.y - p.dy * 0.9);
+      this.portals.add(g);
     }
   }
 

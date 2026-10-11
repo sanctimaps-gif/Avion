@@ -360,6 +360,7 @@ export class App {
       parcelMode: this.mode.kind === 'parcel',
       quality: this.settings.quality,
       realTime: now,
+      simSpeed: this.s.gameOver || this.panel === 'saves' || this.panel === 'newgame' ? 0 : this.clock.speed,
     };
     try {
       this.view.render(this.s, this.cam, fi);

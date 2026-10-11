@@ -11,6 +11,7 @@ import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 import { drawWeather2D } from './weatherfx';
 import { drawRoof } from './roofs';
+import { Traffic } from './traffic';
 
 /** Vue 2D du dessus (et base de la vue hybride). */
 const CACHE_PX = 24;
@@ -158,7 +159,7 @@ export class View2D implements GameView {
       ctx.fillText('⚠️', c[0], c[1]);
     }
 
-    this.vehicles(s, P, z, t);
+    this.vehicles(s, P, z, t, fi.simSpeed ?? 1);
     if (this.kind === 'hybrid') drawLayers(ctx, s, P, z, fi.layers);
 
     // Avions
@@ -315,22 +316,55 @@ export class View2D implements GameView {
     }
   }
 
-  private vehicles(s: GameState, P: Project, z: number, t: number): void {
-    // Flux routier : véhicules sur les routes, densité liée au trafic passagers.
+  private traffic = new Traffic();
+  private vehicles(s: GameState, P: Project, z: number, t: number, simSpeed: number): void {
+    // Circulation routière : trajets sur le réseau, tunnels et parkings souterrains.
     const ctx = this.ctx;
-    const density = clamp(s.pax.live.inTerminal / 400, 0.05, 1);
-    const w = getWorld(s);
-    let i = 0;
-    for (const b of s.buildings) {
-      if (b.type !== 'road' || !w.roadOk[b.y * s.map.w + b.x]) continue;
-      i++;
-      const phase = (t * 0.0008 + i * 0.37) % 1;
-      if ((i * 7919) % 100 > density * 100) continue;
-      const isRoad = (x: number, y: number) => y >= 0 && y < s.map.h && w.byId.get(w.occ[y * s.map.w + x])?.type === 'road';
-      const vertical = isRoad(b.x, b.y - 1) || isRoad(b.x, b.y + 1);
-      const p = vertical ? P(b.x + 0.35, b.y + phase) : P(b.x + phase, b.y + 0.35);
-      ctx.fillStyle = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b'][i % 4];
-      ctx.fillRect(p[0] - z * 0.12, p[1] - z * 0.12, z * 0.24, z * 0.24);
+    this.traffic.update(s, t, simSpeed);
+    // Trémies (tunnel, parking) : rampe sombre bordée de béton.
+    for (const p of this.traffic.portals) {
+      const x0 = p.x - p.dx * 0.9;
+      const y0 = p.y - p.dy * 0.9;
+      const nx = -p.dy * 0.47;
+      const ny = p.dx * 0.47;
+      const corners = [[x0 + nx, y0 + ny], [x0 - nx, y0 - ny], [p.x - nx, p.y - ny], [p.x + nx, p.y + ny]].map(([x, y]) => P(x, y));
+      const grad = ctx.createLinearGradient(...P(x0, y0), ...P(p.x, p.y));
+      grad.addColorStop(0, '#4b5563');
+      grad.addColorStop(1, '#05070a');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = p.kind === 'tunnel' ? '#d6d3d1' : '#60a5fa';
+      ctx.lineWidth = Math.max(1, z * 0.06);
+      ctx.stroke();
+      if (p.kind === 'parking' && z > 10) {
+        const [cx, cy] = P(x0, y0);
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fillRect(cx - z * 0.14, cy - z * 0.14, z * 0.28, z * 0.28);
+        ctx.fillStyle = '#fff';
+        ctx.font = `700 ${Math.round(z * 0.22)}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('P', cx, cy + 1);
+      }
+    }
+    const colors = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af', '#16a34a', '#7c3aed'];
+    for (const c of this.traffic.poses()) {
+      const [x, y] = P(c.x, c.y);
+      const L = (c.kind === 'bus' ? 0.9 : 0.4) * z;
+      const Wd = (c.kind === 'bus' ? 0.22 : 0.2) * z;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(c.hdg);
+      // Assombri quand il descend dans la trémie
+      ctx.globalAlpha = clamp(1 + c.h * 2.4, 0.15, 1);
+      ctx.fillStyle = c.kind === 'bus' ? '#facc15' : c.kind === 'taxi' ? '#fde047' : colors[c.seed % colors.length];
+      ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
+      ctx.fillStyle = 'rgba(15,23,42,0.55)';
+      ctx.fillRect(L * 0.05, -Wd / 2 + 1, L * 0.22, Wd - 2);
+      ctx.restore();
     }
   }
 

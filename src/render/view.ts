@@ -35,6 +35,8 @@ export interface FrameInfo {
   parcelMode: boolean;
   quality: Quality;
   realTime: number;
+  /** Vitesse de la simulation (0 = pause). */
+  simSpeed?: number;
 }
 
 export interface GameView {
