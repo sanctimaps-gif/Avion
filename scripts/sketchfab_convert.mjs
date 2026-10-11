@@ -11,7 +11,7 @@ const [inDir, outDir, only] = process.argv.slice(2);
 // len : longueur cible en mètres selon l'axe long (véhicules) ; rotY : rotation (rad) ; copies : [n, pas en m] le long de X
 const JOBS = {
   // Lot 4 (dossier exp4 : exports GLB des fichiers OBJ/DAE/FBX)
-  a380: { src: 'a380.glb', ratio: 0.025, tex: 512, loose: true, bake: true },
+  a380: { src: 'a380.glb', ratio: 0.015, tex: 512, loose: true, bake: true },
   entrepot: { src: 'entrepot.glb', ratio: 0.1, tex: 256, loose: true },
   centrale: { src: 'centrale.glb', ratio: 0.12, tex: 256, loose: true, bake: true, ground: 0, minZ: -21 },
   immeuble: { src: 'immeuble.glb', ratio: 0.06, tex: 256, loose: true, bake: true },
@@ -20,15 +20,15 @@ const JOBS = {
   hangar_fret: { src: 'hangar_src.glb', ratio: 1, tex: 256, drop: /^(Plane_Body|Body_Plane|cardboard|Tape|0046_Gold|edge_color|Steel_Roughness)/ },
   boutique: { src: 'corner_shop__stylized_tier_i/scene.gltf', ratio: 0.01, tex: 512, loose: true, bake: true },
   cafe: { src: 'caffe_bernini/f1fb4934-caffe_bernini.glb', ratio: 0.12, err: 0.05, loose: true, bake: true, bakeEmissive: true, gain: 2.2, tex: 512, drop: /^(Inside|Stuff|Glass|Aeropress)/ },
-  hors_taxes: { src: 'woolworths_big_w_australian_commercial_building/4a4ba12e-woolworths_big_w_australian_commercial_building.glb', ratio: 0.5, tex: 512 },
+  hors_taxes: { src: 'woolworths_big_w_australian_commercial_building/4a4ba12e-woolworths_big_w_australian_commercial_building.glb', ratio: 0.5, tex: 256 },
   batiment_marin: { src: 'batiment_marin/3b12e63d-batiment_marin.glb', ratio: 0.08, tex: 512, loose: true },
-  parking: { src: 'modern_parking_area/scene.gltf', ratio: 0.4, tex: 512 },
+  parking: { src: 'modern_parking_area/scene.gltf', ratio: 1, tex: 512, drop: /^Props_Atlas/ },
   abribus: { src: 'abribus_bus_stop_bus_station/scene.gltf', ratio: 0.5, tex: 256, copies: [3, 4] },
   gare: { src: 'train_station/scene.gltf', ratio: 0.012, tex: 256, loose: true, align: true },
   foret: { src: 'forest/scene.gltf', ratio: 0.2, tex: 256, drop: /^(Floor|Kust|Paporotnik)/ },
   bus_ville: { src: 'japanese_bus_nagoya_city_bus_aichi/scene.gltf', ratio: 1, tex: 512, len: 11 },
-  police: { src: 'police_car/scene.gltf', ratio: 0.015, tex: 512, loose: true, len: 4.9 },
-  train_sf: { src: 'train/scene.gltf', ratio: 0.2, tex: 512, len: 20.5, metal: true, copies: [3, 0.3, 2], frontAtOrigin: true },
+  police: { src: 'police_car/scene.gltf', ratio: 0.015, tex: 256, loose: true, len: 4.9 },
+  train_sf: { src: 'train/scene.gltf', ratio: 0.2, tex: 256, len: 20.5, metal: true, copies: [3, 0.3, 2], frontAtOrigin: true },
 };
 await MeshoptSimplifier.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
