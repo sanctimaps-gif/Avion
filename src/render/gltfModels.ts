@@ -13,15 +13,19 @@ import carUrl from '../assets/models/vehicules/voiture.glb?inline';
 import busUrl from '../assets/models/vehicules/bus.glb?inline';
 import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?inline';
 import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?inline';
-import bagUrl from '../assets/models/vehicules/train_bagages.glb?inline';
-import fireTruckUrl from '../assets/models/vehicules/camion_pompiers.glb?inline';
 import plowUrl from '../assets/models/vehicules/chasse_neige.glb?inline';
 import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?inline';
 import trainUrl from '../assets/models/vehicules/train.glb?inline';
 import towerBigUrl from '../assets/models/sketchfab/tour_controle_bs.glb?inline';
-import jetUrl from '../assets/models/sketchfab/avion1_bs.glb?inline';
 import rearJetUrl from '../assets/models/sketchfab/avion3_bs.glb?inline';
-import stairsUrl from '../assets/models/sketchfab/escalier_bs.glb?inline';
+import termPack1Url from '../assets/models/pack/terminal_pack1.glb?inline';
+import termPack2Url from '../assets/models/pack/terminal_pack2.glb?inline';
+import stairsUrl from '../assets/models/pack/escalier_pack.glb?inline';
+import fireTruckPackUrl from '../assets/models/pack/camion_pompiers_pack.glb?inline';
+import apronBusUrl from '../assets/models/pack/bus_piste_pack.glb?inline';
+import bagPackUrl from '../assets/models/pack/train_bagages_pack.glb?inline';
+import a320Url from '../assets/models/pack/a320.glb?inline';
+import a330Url from '../assets/models/pack/a330.glb?inline';
 import { nightMats } from './models3d';
 
 /**
@@ -43,16 +47,21 @@ const SOURCES: Record<string, string> = {
   bus: busUrl,
   camion_citerne: fuelUrl,
   tracteur_repoussage: tugUrl,
-  train_bagages: bagUrl,
-  camion_pompiers: fireTruckUrl,
+  train_bagages: bagPackUrl,
+  bus_piste: apronBusUrl,
+  camion_pompiers: fireTruckPackUrl,
   chasse_neige: plowUrl,
   engin_degivrage: deicerUrl,
   train: trainUrl,
   // Pièces de « Airport Final Big Scene » (assetfactory, Sketchfab Standard) — voir CREDITS.md
   tour_controle_bs: towerBigUrl,
-  avion1_bs: jetUrl,
   avion3_bs: rearJetUrl,
+  // Pièces de « Airport Pack Total », Airbus A320 et A330-300 (archives fournies) — voir pack/CREDITS.md
+  terminal_pack1: termPack1Url,
+  terminal_pack2: termPack2Url,
   escalier: stairsUrl,
+  a320: a320Url,
+  a330: a330Url,
 };
 
 /** Échelle des véhicules : 1 case ≈ 8 m (légèrement exagérée pour rester lisible à côté des avions). */
@@ -94,11 +103,15 @@ export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[]
   return parts;
 }
 
-/** Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z), hauteur max en cases]. */
-const BUILDING_MODELS: Record<string, [string, number, number?]> = {
+/**
+ * Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z),
+ * hauteur max en cases, écrasement vertical autorisé pour respecter cette hauteur].
+ */
+const BUILDING_MODELS: Record<string, [string, number, number?, boolean?]> = {
   terminal_s: ['terminal', Math.PI],
-  terminal_m: ['terminal', Math.PI],
-  terminal_l: ['terminal', Math.PI],
+  // Terminaux du pack : façade (enseigne) vers +X, côté long selon Z.
+  terminal_m: ['terminal_pack2', 0, 2.4, true],
+  terminal_l: ['terminal_pack1', 0, 3.2, true],
   tower_s: ['tour_controle', 0],
   tower_l: ['tour_controle_bs', 0, 7],
   hangar: ['hangar', Math.PI],
@@ -112,13 +125,13 @@ const AIRCRAFT_MODELS: Record<string, string> = {
   tp70: 'turbopropulseur',
   rj95: 'avion3_bs',
   nb180: 'moyen_courrier',
-  nb220: 'moyen_courrier',
-  wb300: 'avion1_bs',
-  wb380: 'avion1_bs',
+  nb220: 'a320',
+  wb300: 'a330',
+  wb380: 'a330',
   sj550: 'gros_porteur',
 };
 /** Direction du nez dans le modèle (par défaut +Z). */
-const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion1_bs: '+X', avion3_bs: '-X' };
+const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion3_bs: '-X' };
 /** Matériaux portant la couleur de la compagnie. */
 const LIVERY = new Set(['red', 'blue', 'navy']);
 
@@ -164,6 +177,11 @@ export function loadModels(): Promise<void> {
   return loading;
 }
 
+/** Le modèle importé de ce bâtiment inclut ses propres passerelles d'embarquement. */
+export function hasOwnJetways(type: string): boolean {
+  return BUILDING_MODELS[type]?.[0] === 'terminal' && templates.has('terminal');
+}
+
 export function modelsLoaded(): boolean {
   return templates.size > 0;
 }
@@ -197,9 +215,11 @@ export function importedBuilding(type: string, W: number, D: number): THREE.Obje
   }
   holder.rotation.y = rot;
   let sc = Math.min((W * 0.97) / ex, (D * 0.97) / ez);
-  if (spec[2]) sc = Math.min(sc, spec[2] / size.y);
+  let sy = sc;
+  if (spec[2] && spec[3]) sy = Math.min(sc, spec[2] / size.y);
+  else if (spec[2]) sc = sy = Math.min(sc, spec[2] / size.y);
   const out = new THREE.Group();
-  holder.scale.setScalar(sc);
+  holder.scale.set(sc, sy, sc);
   out.add(holder);
   return out;
 }

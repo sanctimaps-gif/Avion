@@ -19,7 +19,7 @@ import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from '
 const TEX_PX = 24;
 
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
-import { importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
+import { hasOwnJetways, importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
 import { Environment } from './env3d';
 import { VehicleFleet, type VehicleModel } from './vehicles3d';
 import { WEATHER } from '../data/weather';
@@ -247,8 +247,6 @@ export class View3D implements GameView {
     if (b.buildRemaining > 0) return null;
     const d = BUILDINGS[b.type];
     if (d.standSize) {
-      // Le terminal importé possède déjà ses passerelles.
-      if (modelsLoaded()) return null;
       const w = getWorld(s);
       const st = w.stands.find((x) => x.id === b.id);
       if (!st?.contact) return null;
@@ -263,6 +261,8 @@ export class View3D implements GameView {
         return !!nb && !!BUILDINGS[nb.type].isTerminal;
       });
       if (!hit) return null;
+      // Le terminal importé de base possède déjà ses passerelles.
+      if (hasOwnJetways(w.byId.get(w.occ[hit[1] * W + hit[0]])!.type)) return null;
       const g = new THREE.Group();
       const jw = jetway(Math.min(f.w, f.h) * 0.42);
       // La passerelle part du bord du terminal vers le centre du poste.
@@ -446,7 +446,7 @@ export class View3D implements GameView {
       const hdg = Math.atan2(v.y - p.y, v.x - p.x) + Math.PI / 2;
       let model: VehicleModel;
       if (f.phase === 'servicing') model = i === 0 ? 'camion_citerne' : i === 1 ? 'train_bagages' : deice ? 'engin_degivrage' : 'tracteur_repoussage';
-      else model = f.contact ? 'train_bagages' : 'bus';
+      else model = f.contact ? 'train_bagages' : 'bus_piste';
       this.fleet.add(model, v.x, v.y, hdg);
     });
     // Poste éloigné : escalier mobile contre la porte avant

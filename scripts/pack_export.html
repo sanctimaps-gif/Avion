@@ -1,0 +1,55 @@
+<!doctype html><html><body style="margin:0;background:#dde3ea">
+<canvas id="c" width="1600" height="800"></canvas>
+<script type="importmap">{"imports":{"three":"./nm/three/build/three.module.js","three/addons/":"./nm/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { ColladaLoader } from 'three/addons/loaders/ColladaLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const tex = await new THREE.TextureLoader().loadAsync('airport-pack-total/src/Texture/Texture_airport256b.png');
+tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+const pack = await new OBJLoader().loadAsync('airport-pack-total/src/Airport_PackTotal.obj');
+const packMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, name: 'pack' });
+pack.traverse(m => { if (m.isMesh) m.material = packMat; });
+const dae = (await new ColladaLoader().loadAsync('airbus-a320-s7-airlines/src/model.dae')).scene;
+const kill = []; dae.traverse(o => { if (o.isLineSegments || o.isLine) kill.push(o); });
+kill.forEach(o => o.parent.remove(o));
+const mats = {}; dae.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) mats[m.name] = (mats[m.name] || 0) + 1; });
+window.a320mats = mats;
+const pick = (prefix) => pack.children.find(c => c.name.startsWith(prefix));
+const items = {
+  terminal_pack1: pick('07.Modulo1'), terminal_pack2: pick('07.Modulo2'), passerelle_pack: pick('06.Tunnel'),
+  escalier_pack: pick('03.AirplaneStairs'), camion_pompiers_pack: pick('19.Firetruck'), bus_pack: pick('20.PassengerBus'),
+  tracteur_pack: pick('21.1.BaggageTruck'), chariot_pack: pick('21.3.BaggageTruck'), chariot2_pack: pick('21.2.BaggageTruck'),
+  tour_pack: pick('02.ControlTower'), cafe_pack: pick('13.Cafe'), conteneur_pack: pick('05.Container_'), a320: dae,
+};
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), preserveDrawingBuffer: true, antialias: true });
+r.setScissorTest(true); r.setClearColor('#eef2f6'); r.clear();
+const out = {}; const info = [];
+const names = Object.keys(items); let i = 0;
+for (const name of names) {
+  const src = items[name];
+  const root = new THREE.Group(); root.name = name;
+  const obj = src === dae ? src : src.clone(true);
+  obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj); const c = box.getCenter(new THREE.Vector3());
+  const holder = new THREE.Group(); holder.add(obj);
+  holder.position.set(-c.x, -box.min.y, -c.z);
+  if (src !== dae) obj.position.set(0, 0, 0) , obj.updateMatrixWorld(true);
+  root.add(holder); root.updateMatrixWorld(true);
+  const b2 = new THREE.Box3().setFromObject(root); const s = b2.getSize(new THREE.Vector3());
+  info.push([name, s.toArray().map(v => +v.toFixed(2)), b2.min.toArray().map(v => +v.toFixed(2))]);
+  const glb = await new GLTFExporter().parseAsync(root, { binary: true });
+  let bin = ''; const u8 = new Uint8Array(glb); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 0x8000));
+  out[name] = btoa(bin);
+  // vue de dessus (axes : rouge +X, bleu +Z)
+  const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x667788, 2.5));
+  scene.add(root); const L = s.length();
+  scene.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, s.y + 0.1, 0), L * 0.5, 0xff0000));
+  scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, s.y + 0.1, 0), L * 0.5, 0x0000ff));
+  const cam = new THREE.PerspectiveCamera(40, 1, L / 1000, L * 10); cam.position.set(L * 0.5, L * 0.8, L * 0.6); cam.lookAt(0, s.y / 2, 0);
+  const W = 1600 / 7, x = (i % 7) * W, y = Math.floor(i / 7) * W;
+  r.setViewport(x, 800 - y - W, W, W); r.setScissor(x, 800 - y - W, W, W); r.render(scene, cam); i++;
+}
+window.done = { info, out };
+</script></body></html>
