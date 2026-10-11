@@ -212,6 +212,14 @@ let loading: Promise<void> | null = null;
 
 /** Lit un modèle (fichier à côté du jeu, ou URL data: en développement). */
 async function fetchModel(url: string): Promise<ArrayBuffer> {
+  // Aperçu en ligne : les modèles peuvent être fournis par des scripts (window.__GLB, URL data:).
+  const packed = (window as unknown as { __GLB?: Record<string, string> }).__GLB?.[url.split('/').pop() ?? ''];
+  if (packed) {
+    const bin = atob(packed.slice(packed.indexOf(',') + 1));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  }
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${r.status} ${url}`);
   return r.arrayBuffer();
