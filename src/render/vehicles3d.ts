@@ -11,6 +11,7 @@ export type VehicleModel =
   | 'voiture'
   | 'bus'
   | 'bus_piste'
+  | 'police'
   | 'camion_citerne'
   | 'tracteur_repoussage'
   | 'train_bagages'
@@ -24,6 +25,7 @@ const CAPACITY: Record<VehicleModel, number> = {
   voiture: 90,
   bus: 16,
   bus_piste: 12,
+  police: 12,
   camion_citerne: 24,
   tracteur_repoussage: 16,
   train_bagages: 24,

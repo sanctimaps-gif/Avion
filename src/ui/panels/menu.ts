@@ -182,8 +182,26 @@ export function settingsPanel(app: App): HTMLElement {
         h('div', null, `WebGL 2 : ${wi.webgl2 ? '✔' : '✘'} ${wi.renderer}`),
         h('div', null, `${innerWidth}×${innerHeight} @${devicePixelRatio}x`),
         h('div', null, navigator.userAgent));
-    })()));
+    })()),
+    section(t('set.credits'), h('div', { class: 'small muted', style: 'user-select:text' }, MODEL_CREDITS.map((c) => h('div', null, c)))));
 }
+
+/** Modèles 3D tiers (attribution exigée par les licences CC-BY). */
+const MODEL_CREDITS = [
+  '« Airport Final Big Scene » — assetfactory (Sketchfab Standard)',
+  '« Caffè Bernini » — Jellepostma (CC-BY 4.0)',
+  '« Corner Shop – Stylized Tier I » — Mrigua Mohamed (CC-BY 4.0)',
+  '« Batiment Marin » — abertin (CC-BY 4.0)',
+  '« Modern Parking Area » — Vertex (CC-BY 4.0)',
+  '« Abribus, Bus stop, bus station » — Configcars / maxipub (CC-BY 4.0)',
+  '« Train Station » — How2 Series (CC-BY 4.0)',
+  '« Forest » — rhfqcntrkf (CC-BY 4.0)',
+  '« Police car » — Mateusz Woliński (CC-BY 4.0)',
+  '« Train » — abhayexe (CC-BY 4.0)',
+  '« Japanese bus "Nagoya City Bus" » — VRC-IW (CC-BY-NC 4.0)',
+  '« Woolworths Big W Australian Commercial Building » — JoTrain The Aussie (Sketchfab Standard)',
+  'Airport Pack Total, Airbus A320, Airbus A330-300 — archives fournies',
+];
 
 export function logPanel(app: App): HTMLElement {
   const list = [...app.s.log].reverse().slice(0, 120);

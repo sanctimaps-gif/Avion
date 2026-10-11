@@ -52,7 +52,10 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
 - Modèles tiers (`src/assets/models/sketchfab/` et `pack/`, voir les `CREDITS.md`) : grande tour de contrôle,
   jet régional (« Airport Final Big Scene », assetfactory, licence Sketchfab Standard) ; terminaux moyen et
   grand, escalier mobile, camion de pompiers, bus de piste, train de bagages (« Airport Pack Total »),
-  Airbus A320 (NB-220) et A330-300 (WB-300/380) — allégés par `scripts/pack_*.mjs`.
+  Airbus A320 (NB-220) et A330-300 (WB-300/380) — allégés par `scripts/pack_*.mjs` ; boutique, café/restaurant,
+  boutique hors taxes, R&D/formation, petit parking, gare routière, gare, bosquets, bus de ville, voiture de
+  police, train (modèles Sketchfab CC-BY, convertis par `scripts/sketchfab_convert.mjs`). Crédits aussi dans
+  Réglages → « Crédits des modèles 3D ».
 - Véhicules 3D instanciés (`src/assets/models/vehicules/`, allégés par `scripts/lowpoly_vehicles.py`) :
   voitures et bus sur les routes et l'autoroute, camion-citerne, train de bagages, bus de piste,
   tracteur de repoussage, engin de dégivrage, camions de pompiers (sur la piste en cas d'incident),
@@ -86,7 +89,7 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
 Non réalisé / limites (honnêtement) :
 - **Multijoueur et services en ligne : non implémentés** (le jeu est volontairement 100 % hors ligne).
   Le classement compare uniquement les aéroports présents sur l'appareil.
-- Pas de son. Les modèles 3D sont procéduraux (pas d'assets artistiques).
+- Pas de son. Les bâtiments sans modèle importé (centrale, dépôts, ILS…) restent procéduraux.
 - L'APK Android et le projet iOS n'ont pas pu être compilés ici (SDK Android inaccessible, pas de macOS) :
   la CI GitHub compile l'APK de débogage ; la publication sur les stores reste à faire (signature, comptes développeur).
 - La vue isométrique pivote par quarts de tour ; les passagers ne sont pas dessinés individuellement

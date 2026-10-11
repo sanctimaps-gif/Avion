@@ -277,6 +277,14 @@ export class View3D implements GameView {
       return g;
     }
     const dec = flatDecor(b.type, f.w, f.h, b.id);
+    const imp = importedBuilding(b.type, f.w, f.h);
+    if (imp) {
+      imp.position.y = 0.01;
+      const holder = dec ?? new THREE.Group();
+      holder.add(imp);
+      holder.position.set(b.x + f.w / 2, 0, b.y + f.h / 2);
+      return holder;
+    }
     if (!dec) return null;
     dec.position.set(b.x + f.w / 2, 0, b.y + f.h / 2);
     return dec;
@@ -407,7 +415,7 @@ export class View3D implements GameView {
       const z = vertical ? b.y + ph : b.y + 0.35;
       const color = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af'][i % 6];
       if (useFleet) {
-        this.fleet.add(i % 11 === 0 ? 'bus' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
+        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
         continue;
       }
       m.makeTranslation(x, 0.13, z);
@@ -475,6 +483,14 @@ export class View3D implements GameView {
             const cz = (target.a.y + target.b.y) / 2;
             this.fleet.add('camion_pompiers', cx + (k - 0.5) * 1.6, cz + 0.9, target.horizontal ? 0 : Math.PI / 2);
           } else this.fleet.add('camion_pompiers', b.x + f.w / 2 + (k - 0.5) * 0.9, b.y + 0.55, -Math.PI / 2);
+        }
+      } else if (b.type === 'bus_station') {
+        // Bus de ville à quai devant les abris.
+        const along = f.w >= f.h;
+        for (let k = 0; k < 2; k++) {
+          const u = (k + 0.5) / 2;
+          if (along) this.fleet.add('bus', b.x + f.w * u + 0.45, b.y + f.h - 0.35, 0, '#ffffff');
+          else this.fleet.add('bus', b.x + f.w - 0.35, b.y + f.h * u + 0.45, Math.PI / 2, '#ffffff');
         }
       } else if (b.type === 'train_station') {
         const along = f.w >= f.h;

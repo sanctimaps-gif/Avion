@@ -11,3 +11,25 @@ Fichiers : `tour_controle_bs.glb` (02.ControlTower),
 
 La licence Sketchfab Standard autorise l'usage dans un jeu mais pas la redistribution
 des modèles seuls. Ils sont inclus ici à la demande du propriétaire du dépôt.
+
+## Lot 3 (modèles Sketchfab fournis, convertis par `scripts/sketchfab_convert.mjs`)
+
+| Fichier | Modèle | Auteur | Licence |
+|---|---|---|---|
+| `cafe.glb` (café, restaurant) | [Caffè Bernini](https://sketchfab.com/3d-models/caffe-bernini-30aec62d7c7f4c58acac204d2eeb49bd) | Jellepostma | CC-BY 4.0 |
+| `boutique.glb` (boutique) | [Corner Shop – Stylized Tier I](https://sketchfab.com/3d-models/corner-shop-stylized-tier-i-d4aebb9994eb47f7accb640ea3ef9fa1) | Mrigua Mohamed | CC-BY 4.0 |
+| `batiment_marin.glb` (R&D, formation) | [Batiment Marin](https://sketchfab.com/3d-models/batiment-marin-b343ce14100c48f080b7d67beae34d67) | abertin | CC-BY 4.0 |
+| `parking.glb` (petit parking) | [Modern Parking Area](https://sketchfab.com/3d-models/modern-parking-area-a99ebc86d6224bffbaf310db880d72b6) | Vertex | CC-BY 4.0 |
+| `abribus.glb` (gare routière) | [Abribus, Bus stop, bus station](https://sketchfab.com/3d-models/abribus-bus-stop-bus-station-ab3c98bf93de498bb45c129afa4c3ab3) | Configcars / maxipub | CC-BY 4.0 |
+| `gare.glb` (gare ferroviaire) | [Train Station](https://sketchfab.com/3d-models/train-station-5b0202bd420e4a7a836939d901cb51c8) | How2 Series | CC-BY 4.0 |
+| `foret.glb` (bosquet) | [Forest](https://sketchfab.com/3d-models/forest-9153c2b370934758bf14c395abe36b27) | rhfqcntrkf | CC-BY 4.0 |
+| `police.glb` (voiture de police) | [Police car](https://sketchfab.com/3d-models/police-car-9166b13b6ae341f4bfc093edb71d74f4) | Mateusz Woliński | CC-BY 4.0 |
+| `train_sf.glb` (train, 3 voitures) | [Train](https://sketchfab.com/3d-models/train-3c0b862c7032474ab35f90546cb797d1) | abhayexe | CC-BY 4.0 |
+| `bus_ville.glb` (bus de ville) | [Japanese bus "Nagoya City Bus"](https://sketchfab.com/3d-models/japanese-bus-nagoya-city-bus-aichi-37c0a04a7aef4139b6aa037d17e768e5) | VRC-IW | CC-BY-NC 4.0 (pas d'usage commercial) |
+| `hors_taxes.glb` (boutique hors taxes) | [Woolworths Big W Australian Commercial Building](https://sketchfab.com/3d-models/woolworths-big-w-australian-commercial-building-7a006ce2d8a641e38133388ef9071ff2) | JoTrain The Aussie | Sketchfab Standard ; enseignes de marques réelles |
+
+Modifications : simplification du maillage, réduction des textures, couleurs de sommets à partir des
+textures (boutique, café), intérieur du café retiré, sol de la forêt retiré, abri triplé, train en 3 voitures.
+
+Non utilisés : « ancienne centrale charbon Gardanne » et « Foret d'automne » (nuages de points, pas de
+surfaces), « A Minimalist Airport Diorama » (1 million de triangles, diorama complet).

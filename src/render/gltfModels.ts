@@ -10,14 +10,23 @@ import propUrl from '../assets/models/turbopropulseur.glb?inline';
 import mediumUrl from '../assets/models/moyen_courrier.glb?inline';
 import heavyUrl from '../assets/models/gros_porteur.glb?inline';
 import carUrl from '../assets/models/vehicules/voiture.glb?inline';
-import busUrl from '../assets/models/vehicules/bus.glb?inline';
 import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?inline';
 import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?inline';
 import plowUrl from '../assets/models/vehicules/chasse_neige.glb?inline';
 import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?inline';
-import trainUrl from '../assets/models/vehicules/train.glb?inline';
 import towerBigUrl from '../assets/models/sketchfab/tour_controle_bs.glb?inline';
 import rearJetUrl from '../assets/models/sketchfab/avion3_bs.glb?inline';
+import shopUrl from '../assets/models/sketchfab/boutique.glb?inline';
+import cafeUrl from '../assets/models/sketchfab/cafe.glb?inline';
+import dutyFreeUrl from '../assets/models/sketchfab/hors_taxes.glb?inline';
+import officeUrl from '../assets/models/sketchfab/batiment_marin.glb?inline';
+import carParkUrl from '../assets/models/sketchfab/parking.glb?inline';
+import busStopUrl from '../assets/models/sketchfab/abribus.glb?inline';
+import stationUrl from '../assets/models/sketchfab/gare.glb?inline';
+import forestUrl from '../assets/models/sketchfab/foret.glb?inline';
+import cityBusUrl from '../assets/models/sketchfab/bus_ville.glb?inline';
+import policeUrl from '../assets/models/sketchfab/police.glb?inline';
+import trainUrl from '../assets/models/sketchfab/train_sf.glb?inline';
 import termPack1Url from '../assets/models/pack/terminal_pack1.glb?inline';
 import termPack2Url from '../assets/models/pack/terminal_pack2.glb?inline';
 import stairsUrl from '../assets/models/pack/escalier_pack.glb?inline';
@@ -44,7 +53,8 @@ const SOURCES: Record<string, string> = {
   moyen_courrier: mediumUrl,
   gros_porteur: heavyUrl,
   voiture: carUrl,
-  bus: busUrl,
+  bus: cityBusUrl,
+  police: policeUrl,
   camion_citerne: fuelUrl,
   tracteur_repoussage: tugUrl,
   train_bagages: bagPackUrl,
@@ -56,6 +66,15 @@ const SOURCES: Record<string, string> = {
   // Pièces de « Airport Final Big Scene » (assetfactory, Sketchfab Standard) — voir CREDITS.md
   tour_controle_bs: towerBigUrl,
   avion3_bs: rearJetUrl,
+  // Modèles Sketchfab sous licence CC-BY (sauf mention) — voir sketchfab/CREDITS.md
+  boutique: shopUrl,
+  cafe: cafeUrl,
+  hors_taxes: dutyFreeUrl,
+  batiment_marin: officeUrl,
+  parking_sf: carParkUrl,
+  abribus: busStopUrl,
+  gare: stationUrl,
+  foret: forestUrl,
   // Pièces de « Airport Pack Total », Airbus A320 et A330-300 (archives fournies) — voir pack/CREDITS.md
   terminal_pack1: termPack1Url,
   terminal_pack2: termPack2Url,
@@ -105,9 +124,9 @@ export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[]
 
 /**
  * Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z),
- * hauteur max en cases, écrasement vertical autorisé pour respecter cette hauteur].
+ * hauteur max en cases, écrasement vertical autorisé pour respecter cette hauteur, hauteur min en cases (étirement)].
  */
-const BUILDING_MODELS: Record<string, [string, number, number?, boolean?]> = {
+const BUILDING_MODELS: Record<string, [string, number, number?, boolean?, number?]> = {
   terminal_s: ['terminal', Math.PI],
   // Terminaux du pack : façade (enseigne) vers +X, côté long selon Z.
   terminal_m: ['terminal_pack2', 0, 2.4, true],
@@ -118,6 +137,16 @@ const BUILDING_MODELS: Record<string, [string, number, number?, boolean?]> = {
   fire_station: ['caserne_pompiers', Math.PI],
   parking_m: ['parking', 0],
   hotel: ['hotel', 0],
+  shop: ['boutique', 0],
+  cafe: ['cafe', 0],
+  restaurant: ['cafe', 0],
+  dutyfree: ['hors_taxes', 0],
+  rnd: ['batiment_marin', 0],
+  training: ['batiment_marin', 0],
+  parking_s: ['parking_sf', 0],
+  bus_station: ['abribus', 0],
+  train_station: ['gare', 0],
+  trees: ['foret', 0, undefined, undefined, 0.9],
 };
 
 /** Avion du jeu → modèle. */
@@ -168,7 +197,7 @@ export function loadModels(): Promise<void> {
             nightMats.add(mat);
           }
         });
-        templates.set(name, { obj, box: new THREE.Box3().setFromObject(obj) });
+        templates.set(name, { obj, box: new THREE.Box3().setFromObject(obj, true) });
       } catch (e) {
         console.warn('Modèle 3D illisible :', name, e);
       }
@@ -218,6 +247,7 @@ export function importedBuilding(type: string, W: number, D: number): THREE.Obje
   let sy = sc;
   if (spec[2] && spec[3]) sy = Math.min(sc, spec[2] / size.y);
   else if (spec[2]) sc = sy = Math.min(sc, spec[2] / size.y);
+  if (spec[4]) sy = Math.max(sy, spec[4] / size.y);
   const out = new THREE.Group();
   holder.scale.set(sc, sy, sc);
   out.add(holder);

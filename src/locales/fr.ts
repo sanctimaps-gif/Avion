@@ -19,6 +19,7 @@ export const fr: Record<string, string> = {
   'menu.saveNow': 'Sauvegarder maintenant', 'menu.offline': 'Jeu 100 % hors ligne : vos parties sont enregistrées sur cet appareil.',
   'toast.3dLost': 'La 3D a été interrompue par le téléphone (mémoire graphique). Passage en vue isométrique.',
   'toast.renderError': 'Erreur d\'affichage en {view} : {msg}. Changement de vue.',
+  'set.credits': 'Crédits des modèles 3D',
   'set.diag': 'Diagnostic graphique',
   'toast.saved': 'Partie sauvegardée', 'toast.saveError': 'Erreur de sauvegarde', 'toast.loaded': 'Partie « {name} » chargée',
   'toast.newGame': 'Nouvelle partie : {name}', 'toast.recovered': 'Sauvegarde endommagée : la copie de secours a été restaurée',

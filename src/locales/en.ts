@@ -18,6 +18,7 @@ export const en: Record<string, string> = {
   'menu.saveNow': 'Save now', 'menu.offline': '100% offline game: your games are stored on this device.',
   'toast.3dLost': '3D was interrupted by the device (graphics memory). Switching to isometric view.',
   'toast.renderError': 'Display error in {view}: {msg}. Switching view.',
+  'set.credits': '3D model credits',
   'set.diag': 'Graphics diagnostics',
   'toast.saved': 'Game saved', 'toast.saveError': 'Save error', 'toast.loaded': 'Game "{name}" loaded',
   'toast.newGame': 'New game: {name}', 'toast.recovered': 'Damaged save: the backup copy was restored',
