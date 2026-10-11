@@ -11,6 +11,9 @@ const [inDir, outDir, only] = process.argv.slice(2);
 // ratio : part de triangles gardée ; tex : taille max des textures ; loose : simplification sans normales
 // len : longueur cible en mètres selon l'axe long (véhicules) ; rotY : rotation (rad) ; copies : [n, pas en m] le long de X
 const JOBS = {
+  // Lot 7 (exp7)
+  location: { src: 'ShopBuilding.glb', ratio: 0.6, tex: 256 },
+  restaurant_pack: { src: 'RestaurantBuilding.glb', ratio: 0.6, tex: 256 },
   // Lot 6
   gpu: { src: 'gpu.glb', ratio: 0.25, tex: 512, len: 2.9 },
   passerelle: { src: 'jetway.glb', ratio: 0.5, tex: 256 },

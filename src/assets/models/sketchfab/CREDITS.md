@@ -77,3 +77,14 @@ Non utilisés : 747-400 British Airways et Air Force One (CC-BY-NC-SA, très lou
 porteur), A330-200 Aer Lingus (l'A330-300 est déjà intégré), MD-11F (pas de vols cargo), Bentley (CC-BY-NC-SA, 23 Mo),
 locomotive VL85 (18 Mo), mât d'éclairage (1,4 million de triangles), PassengerBridge.skp (format SketchUp illisible ici),
 terminal (déjà écarté), petits objets de l'Airport Pack (déjà intégrés), graviers (pas de surface correspondante).
+
+## Lot 7
+
+| Fichier | Source | Licence |
+|---|---|---|
+| `location.glb` (agence de location), `restaurant_pack.glb` (restaurant) | « Low Poly Business Buildings Pack » (Shop, Restaurant) | archive sans licence |
+
+Non utilisés : grass-patches (touffes d'herbe en sprites, pas une texture de sol), patch-of-grass (touffes 3D lourdes),
+airport_2 (scène complète, CC-BY azelie), airport_foot_traffic (diorama de terminal, CC-BY Chaitanya Krishnan),
+low_poly_tree_scene (bosquet, CC-BY Nicholas-3D ; les arbres du jeu suffisent), usine (pas de bâtiment correspondant),
+chariot à café (petit décor), et les doublons (A380, catering, immeubles, entrepôt, gravier, tapis, camion bagages).

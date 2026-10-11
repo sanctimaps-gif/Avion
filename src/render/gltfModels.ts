@@ -37,6 +37,8 @@ import carMercoUrl from '../assets/models/sketchfab/voiture_merco.glb?url';
 import carFerrariUrl from '../assets/models/sketchfab/voiture_ferrari.glb?url';
 import carShelbyUrl from '../assets/models/sketchfab/voiture_shelby.glb?url';
 import motoUrl from '../assets/models/sketchfab/moto.glb?url';
+import rentalUrl from '../assets/models/sketchfab/location.glb?url';
+import restaurantUrl from '../assets/models/sketchfab/restaurant_pack.glb?url';
 import a380Url from '../assets/models/sketchfab/a380.glb?url';
 import powerUrl from '../assets/models/sketchfab/centrale.glb?url';
 import fuelStationUrl from '../assets/models/sketchfab/station.glb?url';
@@ -95,6 +97,8 @@ const SOURCES: Record<string, string> = {
   foret: forestUrl,
   a380: a380Url,
   q400: q400Url,
+  location: rentalUrl,
+  restaurant_pack: restaurantUrl,
   b777: b777Url,
   gpu: gpuUrl,
   passerelle: jetwayUrl,
@@ -208,7 +212,8 @@ const BUILDING_MODELS: Record<string, [string, number, number?, boolean?, number
   hotel: ['hotel', 0],
   shop: ['boutique', 0],
   cafe: ['cafe', 0],
-  restaurant: ['cafe', 0],
+  restaurant: ['restaurant_pack', 0],
+  rental: ['location', 0],
   dutyfree: ['hors_taxes', 0],
   rnd: ['batiment_marin', 0],
   training: ['batiment_marin', 0],
