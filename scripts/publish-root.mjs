@@ -4,5 +4,5 @@
 import { copyFileSync, renameSync } from 'node:fs';
 
 renameSync('dist/game.html', 'dist/index.html');
-for (const f of ['index.html', 'sw.js', 'manifest.webmanifest', 'icon.svg']) copyFileSync(`dist/${f}`, f);
+for (const f of ['index.html', 'sw.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png']) copyFileSync(`dist/${f}`, f);
 console.log('Jeu compilé copié à la racine (index.html) pour GitHub Pages.');

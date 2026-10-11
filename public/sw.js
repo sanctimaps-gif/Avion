@@ -1,7 +1,7 @@
 // Service worker : met en cache le jeu pour un fonctionnement 100 % hors ligne
 // lorsqu'il est servi en HTTPS (PWA). Le jeu est un fichier unique autonome.
-const CACHE = 'airport-manager-v2';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'airport-manager-v3';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
