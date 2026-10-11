@@ -290,7 +290,7 @@ export const en: Record<string, string> = {
   'set.lang': 'Language', 'set.text': 'Text size', 'set.quality': 'Graphics quality', 'set.autosave': 'Autosave', 'set.fps': 'Show FPS',
   'set.game': 'Game settings', 'set.hint': 'Low quality recommended on modest phones (shadows and particles disabled).',
   'log.empty': 'Empty logbook.',
-  'log.built': '{name}: construction complete', 'log.upgraded': '{name} upgraded to level {level}', 'log.loan': 'Loan of €{amount} granted',
+  'log.built': '{name}: construction complete', 'log.upgraded': '{name} upgraded to level {level}', 'log.rescaled': '{name} removed (no room at its new real size) — fully refunded', 'log.loan': 'Loan of €{amount} granted',
   'log.tax': 'Monthly tax paid: €{amount}', 'log.negativeCash': 'Negative cash! Bankruptcy in {days} days',
   'log.cancelled': 'Flight {flight} cancelled ({reason})', 'log.diverted': 'Flight {flight} diverted ({reason})',
   'log.contractSigned': 'Contract signed: {airline} → {dest}', 'log.contractCancelled': 'Contract terminated: {airline} → {dest}',

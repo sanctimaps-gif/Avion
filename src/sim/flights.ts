@@ -288,17 +288,26 @@ function pointOnPath(p: Pt[], dist: number): { pt: Pt; hdg: number } {
   return { pt: p[p.length - 1], hdg: 0 };
 }
 
+/**
+ * Point du taxiway aligné sur l'axe du poste : l'avion y tourne pour entrer
+ * droit et se garer dans l'axe, nez vers le terminal (les postes sont carrés).
+ */
+function standEntry(st: StandInfo, last: Pt): Pt {
+  const dx = last.x - st.center.x;
+  const dy = last.y - st.center.y;
+  return Math.abs(dx) > Math.abs(dy) ? { x: last.x, y: st.center.y } : { x: st.center.x, y: last.y };
+}
 function buildTaxiIn(s: GameState, w: World, r: RunwayInfo, st: StandInfo, exitPt: Pt): Pt[] | null {
   const starts = runwayAccess(s, w, r, exitPt).slice(0, 6);
   const route = taxiPath(s, w, starts, st.access);
   if (!route) return null;
-  return [exitPt, ...route, st.center];
+  return [exitPt, ...route, standEntry(st, route[route.length - 1]), st.center];
 }
 function buildTaxiOut(s: GameState, w: World, r: RunwayInfo, st: StandInfo, threshold: Pt): Pt[] | null {
   const ends = runwayAccess(s, w, r, threshold).slice(0, 4);
   const route = taxiPath(s, w, st.access, ends);
   if (!route) return null;
-  return [st.center, ...route, threshold];
+  return [st.center, standEntry(st, route[0]), ...route, threshold];
 }
 
 // ---------- Boucle minute ----------

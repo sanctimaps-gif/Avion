@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AIRCRAFT } from '../data/aircraft';
+import { AIRCRAFT, AIRCRAFT_LIST } from '../data/aircraft';
 import { AIRLINES } from '../data/airlines';
 import { BUILDINGS, footprint } from '../data/buildings';
 import { clamp } from '../core/format';
@@ -8,7 +8,7 @@ import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, Flight, GameState, Pt } from '../sim/types';
 import { daylight, flightPose, minuteOfDay, remainingRoute, serviceVehicles, sunAngle } from './common';
-import { drawGround, FLAT } from './ground';
+import { drawGround, FLAT, SHOULDER } from './ground';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 
 /**
@@ -361,15 +361,21 @@ export class View3D implements GameView {
       // Le terminal importé de base possède déjà ses passerelles.
       if (hasOwnJetways(w.byId.get(w.occ[hit[1] * W + hit[0]])!.type)) return null;
       const g = new THREE.Group();
-      const jw = importedJetway(Math.min(f.w, f.h) * 0.42) ?? jetway(Math.min(f.w, f.h) * 0.42);
-      // La passerelle part du bord du terminal vers le centre du poste.
+      // L'avion est garé au centre, nez vers le terminal : la passerelle longe le nez
+      // depuis la façade jusqu'à la porte avant gauche (≈ 36 % de la longueur en avant du centre).
+      const Lt = Math.max(...AIRCRAFT_LIST.filter((a) => a.size === d.standSize).map((a) => a.length));
+      const nx = hit[2];
+      const nz = hit[3];
+      const half = (nx !== 0 ? f.w : f.h) / 2;
+      const len = Math.max(0.6, half - 0.36 * Lt);
+      const off = 0.07 * Lt + 0.25;
+      const jw = importedJetway(len) ?? jetway(len);
       const cx = b.x + f.w / 2;
       const cz = b.y + f.h / 2;
-      const ex = hit[2] !== 0 ? (hit[2] < 0 ? b.x : b.x + f.w) : cx + f.w * 0.25;
-      const ez = hit[3] !== 0 ? (hit[3] < 0 ? b.y : b.y + f.h) : cz + f.h * 0.25;
-      jw.position.set(ex, 0, ez);
-      if (hit[3] !== 0) jw.rotation.y = hit[3] < 0 ? -Math.PI / 2 : Math.PI / 2;
-      if (hit[2] !== 0) jw.rotation.y = hit[2] < 0 ? 0 : Math.PI;
+      // Point de départ : façade du terminal, décalé du côté gauche de l'avion (gauche = (nz, −nx)).
+      jw.position.set(cx + nx * half + nz * off, 0, cz + nz * half - nx * off);
+      // Orientée de la façade vers l'avion (−n).
+      jw.rotation.y = Math.atan2(nz, -nx);
       g.add(jw);
       return g;
     }
@@ -598,9 +604,11 @@ export class View3D implements GameView {
         const target = incident?.targetId ? w.runways.find((r) => r.id === incident.targetId) : undefined;
         for (let k = 0; k < 2; k++) {
           if (target) {
-            const cx = (target.a.x + target.b.x) / 2;
-            const cz = (target.a.y + target.b.y) / 2;
-            this.fleet.add('camion_pompiers', cx + (k - 0.5) * 1.6, cz + 0.9, target.horizontal ? 0 : Math.PI / 2);
+            // Sur l'accotement, à hauteur du milieu de la piste.
+            const half = this.runwayHalf(w, target) - SHOULDER / 2;
+            const cx = (target.a.x + target.b.x) / 2 + (target.horizontal ? (k - 0.5) * 1.6 : half);
+            const cz = (target.a.y + target.b.y) / 2 + (target.horizontal ? half : (k - 0.5) * 1.6);
+            this.fleet.add('camion_pompiers', cx, cz, target.horizontal ? 0 : Math.PI / 2);
           } else this.fleet.add('camion_pompiers', b.x + f.w / 2 + (k - 0.5) * 0.9, b.y + 0.55, -Math.PI / 2);
         }
       } else if (b.type === 'bus_station') {
@@ -622,17 +630,34 @@ export class View3D implements GameView {
         this.fleet.add('train', x, z, h);
       }
     }
-    if (snow) {
-      for (const r of w.runways) {
-        for (let k = 0; k < 2; k++) {
-          const u = (Math.sin(t * 0.0002 + k * 2.1 + r.id) + 1) / 2;
-          const x = r.a.x + (r.b.x - r.a.x) * u + (r.horizontal ? 0 : (k - 0.5) * 0.8);
-          const z = r.a.y + (r.b.y - r.a.y) * u + (r.horizontal ? (k - 0.5) * 0.8 : 0);
-          const dir = Math.cos(t * 0.0002 + k * 2.1 + r.id) >= 0 ? 0 : Math.PI;
+    for (const r of w.runways) {
+      const half = this.runwayHalf(w, r);
+      if (snow) {
+        // Chasse-neige en échelon sur toute la largeur de la chaussée.
+        const n = 3;
+        for (let k = 0; k < n; k++) {
+          const u = (Math.sin(t * 0.0002 + r.id) + 1) / 2 - k * 0.012;
+          const off = (k / (n - 1) - 0.5) * (half - SHOULDER) * 1.5;
+          const x = r.a.x + (r.b.x - r.a.x) * u + (r.horizontal ? 0 : off);
+          const z = r.a.y + (r.b.y - r.a.y) * u + (r.horizontal ? off : 0);
+          const dir = Math.cos(t * 0.0002 + r.id) >= 0 ? 0 : Math.PI;
           this.fleet.add('chasse_neige', x, z, (r.horizontal ? 0 : Math.PI / 2) + dir);
         }
       }
+      // Véhicule d'inspection qui patrouille sur l'accotement.
+      const ph = (t * 0.00003 + r.id * 0.37) % 2;
+      const u = ph < 1 ? ph : 2 - ph;
+      const side = (ph < 1 ? 1 : -1) * (half - SHOULDER / 2);
+      const x = r.a.x + (r.b.x - r.a.x) * u + (r.horizontal ? 0 : side);
+      const z = r.a.y + (r.b.y - r.a.y) * u + (r.horizontal ? side : 0);
+      this.fleet.add('voiture', x, z, (r.horizontal ? 0 : Math.PI / 2) + (ph < 1 ? 0 : Math.PI), '#facc15');
     }
+  }
+
+  /** Demi-largeur (cases) d'une piste, accotements compris. */
+  private runwayHalf(w: ReturnType<typeof getWorld>, r: { id: number; horizontal: boolean }): number {
+    const f = bFootprint(w.byId.get(r.id)!);
+    return (r.horizontal ? f.h : f.w) / 2;
   }
 
   private syncRunwayLights(s: GameState): void {
@@ -642,9 +667,10 @@ export class View3D implements GameView {
       const b = w.byId.get(r.id)!;
       const f = bFootprint(b);
       const n = r.horizontal ? f.w : f.h;
+      // Feux de bord de chaussée, entre la piste et ses accotements.
       for (let i = 0; i <= n; i++) {
-        if (r.horizontal) pts.push(b.x + i, 0.08, b.y + 0.1, b.x + i, 0.08, b.y + f.h - 0.1);
-        else pts.push(b.x + 0.1, 0.08, b.y + i, b.x + f.w - 0.1, 0.08, b.y + i);
+        if (r.horizontal) pts.push(b.x + i, 0.08, b.y + SHOULDER, b.x + i, 0.08, b.y + f.h - SHOULDER);
+        else pts.push(b.x + SHOULDER, 0.08, b.y + i, b.x + f.w - SHOULDER, 0.08, b.y + i);
       }
     }
     this.runwayLights.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));

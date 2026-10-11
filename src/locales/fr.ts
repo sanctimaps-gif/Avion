@@ -306,7 +306,7 @@ export const fr: Record<string, string> = {
   'set.game': 'Paramètres de la partie', 'set.hint': 'Qualité faible recommandée sur les téléphones modestes (ombres et particules désactivées).',
   'log.empty': 'Journal vide.',
   // ---------- Journal ----------
-  'log.built': '{name} : construction terminée', 'log.upgraded': '{name} amélioré au niveau {level}', 'log.loan': 'Emprunt de {amount} € accordé',
+  'log.built': '{name} : construction terminée', 'log.upgraded': '{name} amélioré au niveau {level}', 'log.rescaled': '{name} retiré (pas la place à sa nouvelle taille réelle) — intégralement remboursé', 'log.loan': 'Emprunt de {amount} € accordé',
   'log.tax': 'Impôt mensuel payé : {amount} €', 'log.negativeCash': 'Trésorerie négative ! Faillite dans {days} jours',
   'log.cancelled': 'Vol {flight} annulé ({reason})', 'log.diverted': 'Vol {flight} dérouté ({reason})',
   'log.contractSigned': 'Contrat signé : {airline} → {dest}', 'log.contractCancelled': 'Contrat résilié : {airline} → {dest}',

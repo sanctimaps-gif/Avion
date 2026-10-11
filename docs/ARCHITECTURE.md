@@ -59,6 +59,13 @@ Les liens flights → passengers/airlines passent par `flightHooks` (pas d'impor
 - `overlays.ts` : couches de la vue hybride. `input.ts` : gestes tactiles (Pointer Events).
 - Les positions des avions sont interpolées entre deux minutes de simulation.
 
+### Échelle
+
+Une case vaut 11 m pour tout ce qui se voit : avions (dimensions réelles, ex. A380 6,6 × 7,3 cases),
+véhicules, bâtiments, postes (S 4, M 5, L 7, XL 8 cases) et largeur des pistes (chaussée + accotements
+de 0,6 case, `SHOULDER` dans `render/ground.ts`, où circulent pompiers, chasse-neige et véhicule
+d'inspection). Seule la longueur des pistes est raccourcie, sinon la carte serait dix fois plus grande.
+
 ## Sauvegardes (`src/save`)
 
 - `storage.ts` : IndexedDB (transactions atomiques) → repli localStorage (écriture via clés

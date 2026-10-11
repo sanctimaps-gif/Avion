@@ -51,14 +51,14 @@ export interface BuildingDef {
 
 const D: BuildingDef[] = [
   // ---------- Côté piste ----------
-  { id: 'runway_s', cat: 'airside', w: 16, h: 2, cost: 450_000, buildHours: 72, upkeep: 600, energy: 120, tier: 0, height: 0.05, color: '#3b4250', maxLevel: 2, runwayLength: 1600, staff: { maintenance: 1 }, noise: 7 },
-  { id: 'runway_m', cat: 'airside', w: 24, h: 2, cost: 1_400_000, buildHours: 120, upkeep: 1100, energy: 200, tier: 2, height: 0.05, color: '#363c48', maxLevel: 2, runwayLength: 2500, staff: { maintenance: 2 }, noise: 9 },
-  { id: 'runway_l', cat: 'airside', w: 32, h: 3, cost: 3_800_000, buildHours: 200, upkeep: 2000, energy: 320, tier: 4, height: 0.05, color: '#30353f', maxLevel: 2, runwayLength: 3600, staff: { maintenance: 3 }, noise: 12 },
+  { id: 'runway_s', cat: 'airside', w: 16, h: 4, cost: 450_000, buildHours: 72, upkeep: 600, energy: 120, tier: 0, height: 0.05, color: '#3b4250', maxLevel: 2, runwayLength: 1600, staff: { maintenance: 1 }, noise: 7 },
+  { id: 'runway_m', cat: 'airside', w: 24, h: 4, cost: 1_400_000, buildHours: 120, upkeep: 1100, energy: 200, tier: 2, height: 0.05, color: '#363c48', maxLevel: 2, runwayLength: 2500, staff: { maintenance: 2 }, noise: 9 },
+  { id: 'runway_l', cat: 'airside', w: 32, h: 5, cost: 3_800_000, buildHours: 200, upkeep: 2000, energy: 320, tier: 4, height: 0.05, color: '#30353f', maxLevel: 2, runwayLength: 3600, staff: { maintenance: 3 }, noise: 12 },
   { id: 'taxiway', cat: 'airside', w: 1, h: 1, cost: 5_000, buildHours: 2, upkeep: 6, energy: 1, tier: 0, height: 0.03, color: '#4d5462', maxLevel: 1, linear: true },
-  { id: 'stand_s', cat: 'airside', w: 3, h: 3, cost: 70_000, buildHours: 12, upkeep: 60, energy: 10, tier: 0, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'S', needsTaxiway: true, staff: { ground: 1 } },
-  { id: 'stand_m', cat: 'airside', w: 4, h: 4, cost: 180_000, buildHours: 24, upkeep: 120, energy: 18, tier: 1, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'M', needsTaxiway: true, staff: { ground: 2 } },
-  { id: 'stand_l', cat: 'airside', w: 5, h: 5, cost: 420_000, buildHours: 36, upkeep: 220, energy: 30, tier: 3, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'L', needsTaxiway: true, staff: { ground: 3 } },
-  { id: 'stand_xl', cat: 'airside', w: 6, h: 6, cost: 950_000, buildHours: 48, upkeep: 400, energy: 45, tier: 5, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'XL', needsTaxiway: true, staff: { ground: 4 } },
+  { id: 'stand_s', cat: 'airside', w: 4, h: 4, cost: 70_000, buildHours: 12, upkeep: 60, energy: 10, tier: 0, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'S', needsTaxiway: true, staff: { ground: 1 } },
+  { id: 'stand_m', cat: 'airside', w: 5, h: 5, cost: 180_000, buildHours: 24, upkeep: 120, energy: 18, tier: 1, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'M', needsTaxiway: true, staff: { ground: 2 } },
+  { id: 'stand_l', cat: 'airside', w: 7, h: 7, cost: 420_000, buildHours: 36, upkeep: 220, energy: 30, tier: 3, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'L', needsTaxiway: true, staff: { ground: 3 } },
+  { id: 'stand_xl', cat: 'airside', w: 8, h: 8, cost: 950_000, buildHours: 48, upkeep: 400, energy: 45, tier: 5, height: 0.04, color: '#59606c', maxLevel: 2, standSize: 'XL', needsTaxiway: true, staff: { ground: 4 } },
   { id: 'tower_s', cat: 'airside', w: 2, h: 2, cost: 280_000, buildHours: 48, upkeep: 300, energy: 60, tier: 0, height: 3.2, color: '#d9e2ec', roof: '#5ab4ff', maxLevel: 3, staff: { operations: 2 }, effects: { runwayCap: 14 } },
   { id: 'tower_l', cat: 'airside', w: 3, h: 3, cost: 1_600_000, buildHours: 120, upkeep: 900, energy: 160, tier: 3, height: 6, color: '#e6edf5', roof: '#5ab4ff', maxLevel: 3, staff: { operations: 5 }, effects: { runwayCap: 34 } },
   { id: 'ils', cat: 'airside', w: 1, h: 2, cost: 220_000, buildHours: 24, upkeep: 90, energy: 25, tier: 1, height: 0.8, color: '#f2c94c', maxLevel: 2, needsRunway: true, effects: { ils: 1 } },
@@ -66,7 +66,7 @@ const D: BuildingDef[] = [
   { id: 'deicing', cat: 'airside', w: 3, h: 3, cost: 300_000, buildHours: 24, upkeep: 150, energy: 60, tier: 1, height: 0.4, color: '#7dd3fc', maxLevel: 2, needsTaxiway: true, staff: { ground: 2 }, effects: { deicing: 1 } },
   { id: 'snow_depot', cat: 'airside', w: 3, h: 2, cost: 240_000, buildHours: 24, upkeep: 140, energy: 25, tier: 1, height: 1, color: '#cbd5e1', roof: '#f97316', maxLevel: 2, staff: { maintenance: 2 }, effects: { snow: 1 } },
   { id: 'fuel_depot', cat: 'airside', w: 3, h: 3, cost: 350_000, buildHours: 36, upkeep: 200, energy: 25, tier: 1, height: 1, color: '#f8fafc', roof: '#94a3b8', maxLevel: 3, staff: { ground: 1 }, effects: { fuel: 1 } },
-  { id: 'hangar', cat: 'airside', w: 5, h: 4, cost: 900_000, buildHours: 72, upkeep: 450, energy: 90, tier: 2, height: 2.2, color: '#94a3b8', roof: '#64748b', maxLevel: 3, needsTaxiway: true, staff: { maintenance: 4 }, effects: { mro: 1 } },
+  { id: 'hangar', cat: 'airside', w: 7, h: 6, cost: 900_000, buildHours: 72, upkeep: 450, energy: 90, tier: 2, height: 2.2, color: '#94a3b8', roof: '#64748b', maxLevel: 3, needsTaxiway: true, staff: { maintenance: 4 }, effects: { mro: 1 } },
   { id: 'cargo', cat: 'airside', w: 5, h: 4, cost: 1_200_000, buildHours: 96, upkeep: 500, energy: 80, tier: 2, height: 1.8, color: '#c8a26a', roof: '#8a6b3c', maxLevel: 3, needsTaxiway: true, staff: { baggage: 3, ground: 2 }, effects: { cargo: 1 } },
 
   // ---------- Terminal ----------

@@ -13,7 +13,7 @@ import { invalidateWorld } from './world';
 import { STAFF_CATS, type CommerceKind, type GameMode, type GameSettings, type GameState, type Offer, type StaffCat, type StaffState } from './types';
 
 /** Version du format de sauvegarde (voir save/migrations.ts). */
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export const MAP_W = 96;
 export const MAP_H = 72;
@@ -144,30 +144,30 @@ function staffInit(): Record<StaffCat, StaffState> {
 type Placement = [string, number, number, 0 | 1];
 
 const SMALL_LAYOUT: Placement[] = [
-  ['runway_s', 28, 26, 0],
+  ['runway_s', 28, 24, 0],
   ['stand_s', 30, 29, 0],
   ['stand_s', 34, 29, 0],
-  ['terminal_s', 30, 32, 0],
-  ['checkin', 30, 36, 0],
-  ['security', 33, 36, 0],
-  ['baggage_claim', 36, 32, 1],
-  ['info_desk', 36, 35, 0],
-  ['cafe', 38, 33, 0],
-  ['parking_s', 41, 40, 0],
+  ['terminal_s', 30, 33, 0],
+  ['checkin', 30, 37, 0],
+  ['security', 33, 37, 0],
+  ['baggage_claim', 36, 33, 1],
+  ['info_desk', 36, 36, 0],
+  ['cafe', 38, 34, 0],
+  ['parking_s', 41, 41, 0],
   ['tower_s', 45, 29, 0],
-  ['trees', 46, 36, 0],
-  ['trees', 26, 40, 0],
-  ['trees', 48, 44, 0],
+  ['trees', 46, 37, 0],
+  ['trees', 26, 41, 0],
+  ['trees', 48, 45, 0],
 ];
 
 const MEDIUM_EXTRA: Placement[] = [
   ['stand_m', 38, 29, 0],
   ['fire_station', 47, 29, 0],
-  ['shop', 36, 36, 0],
-  ['checkin', 24, 36, 0],
-  ['terminal_s', 24, 32, 0],
-  ['security', 27, 36, 0],
-  ['deicing', 44, 33, 0],
+  ['shop', 36, 37, 0],
+  ['checkin', 24, 37, 0],
+  ['terminal_s', 24, 33, 0],
+  ['security', 27, 37, 0],
+  ['deicing', 44, 34, 0],
 ];
 
 function applyLayout(s: GameState, layout: Placement[]): void {
@@ -181,12 +181,13 @@ function applyLayout(s: GameState, layout: Placement[]): void {
   for (const [type, x, y, rot] of layout) add(type, x, y, rot);
   // Taxiway parallèle à la piste et route d'accès depuis le bord sud.
   for (let x = 29; x <= 42; x++) add('taxiway', x, 28);
-  for (let y = 38; y < MAP_H - OY; y++) add('road', 40, y);
-  for (let x = 30; x < 40; x++) add('road', x, 38);
+  for (let y = 39; y < MAP_H - OY; y++) add('road', 40, y);
+  for (let x = 30; x < 40; x++) add('road', x, 39);
   if (layout.some((p) => p[1] === 24)) {
-    for (let x = 24; x < 30; x++) add('road', x, 38);
+    for (let x = 24; x < 30; x++) add('road', x, 39);
     add('taxiway', 43, 28);
     add('taxiway', 44, 28);
+    for (let y = 29; y < 37; y++) add('taxiway', 43, y);
   }
   for (const b of s.buildings) {
     // Les parcelles occupées par l'aménagement initial sont acquises.

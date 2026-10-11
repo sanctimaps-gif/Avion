@@ -6,7 +6,7 @@ import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { GameState, Pt } from '../sim/types';
 import { daylight, drawPlane, flightPose, GLYPH, minuteOfDay, remainingRoute, serviceVehicles, type Project } from './common';
-import { drawGround, FLAT, GroundCache } from './ground';
+import { drawGround, FLAT, GroundCache, SHOULDER } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 import { drawWeather2D } from './weatherfx';
@@ -379,14 +379,14 @@ export class View2D implements GameView {
       ctx.fillStyle = `rgba(255,240,200,${0.8 * night})`;
       if (r.horizontal) {
         for (let x = b.x; x <= b.x + f.w; x += 1) {
-          for (const y of [b.y + 0.1, b.y + f.h - 0.1]) {
+          for (const y of [b.y + SHOULDER, b.y + f.h - SHOULDER]) {
             const p = P(x, y);
             ctx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
           }
         }
       } else {
         for (let y = b.y; y <= b.y + f.h; y += 1) {
-          for (const x of [b.x + 0.1, b.x + f.w - 0.1]) {
+          for (const x of [b.x + SHOULDER, b.x + f.w - SHOULDER]) {
             const p = P(x, y);
             ctx.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
           }

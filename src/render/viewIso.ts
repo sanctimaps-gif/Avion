@@ -6,7 +6,7 @@ import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, GameState, Pt } from '../sim/types';
 import { daylight, drawPlane, flightPose, GLYPH, mix, minuteOfDay, serviceVehicles, type Project } from './common';
-import { drawGround, FLAT, GroundCache, tileHash } from './ground';
+import { drawGround, FLAT, GroundCache, tileHash, SHOULDER } from './ground';
 import { drawLayers } from './overlays';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView } from './view';
 import { drawWeather2D } from './weatherfx';
@@ -558,7 +558,7 @@ export class ViewIso implements GameView {
       const b = w.byId.get(r.id)!;
       const f = bFootprint(b);
       for (let i = 0; i <= (r.horizontal ? f.w : f.h); i++) {
-        const pts = r.horizontal ? [[b.x + i, b.y + 0.1], [b.x + i, b.y + f.h - 0.1]] : [[b.x + 0.1, b.y + i], [b.x + f.w - 0.1, b.y + i]];
+        const pts = r.horizontal ? [[b.x + i, b.y + SHOULDER], [b.x + i, b.y + f.h - SHOULDER]] : [[b.x + SHOULDER, b.y + i], [b.x + f.w - SHOULDER, b.y + i]];
         for (const p of pts) {
           const sp = pr(p[0], p[1], 0);
           ctx.fillRect(sp[0] - 1.5, sp[1] - 1.5, 3, 3);

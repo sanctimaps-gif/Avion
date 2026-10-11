@@ -11,6 +11,9 @@ import type { Project } from './common';
  * et comme texture du sol en 3D : les trois vues partagent exactement
  * le même rendu des données.
  */
+/** Largeur (cases) des accotements de chaque côté d'une piste. */
+export const SHOULDER = 0.6;
+
 export const FLAT = new Set(['runway_s', 'runway_m', 'runway_l', 'taxiway', 'road', 'stand_s', 'stand_m', 'stand_l', 'stand_xl', 'parking_s', 'deicing', 'solar']);
 
 function quad(ctx: CanvasRenderingContext2D, P: Project, x0: number, y0: number, x1: number, y1: number): void {
@@ -261,30 +264,49 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
     if (!any) line(ctx, P, x0 + 0.2, cy, x1 - 0.2, cy);
   } else if (d.runwayLength) {
     const horiz = f.w >= f.h;
+    const L = horiz ? f.w : f.h;
+    const Wd = horiz ? f.h : f.w;
+    // Repère de la piste : u le long de l'axe, v en travers (0 = bord).
+    const R = (u0: number, v0: number, u1: number, v1: number) => (horiz ? quad(ctx, P, x0 + u0, y0 + v0, x0 + u1, y0 + v1) : quad(ctx, P, x0 + v0, y0 + u0, x0 + v1, y0 + u1));
+    const Ln = (u0: number, v0: number, u1: number, v1: number) => (horiz ? line(ctx, P, x0 + u0, y0 + v0, x0 + u1, y0 + v1) : line(ctx, P, x0 + v0, y0 + u0, x0 + v1, y0 + u1));
+    // Accotements stabilisés de chaque côté : les véhicules d'intervention y circulent.
+    const sh = SHOULDER;
+    ctx.fillStyle = '#5b6271';
+    R(0, 0, L, sh);
+    ctx.fill();
+    R(0, Wd - sh, L, Wd);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(250,204,21,0.55)';
+    ctx.lineWidth = Math.max(0.5, scale * 0.03);
+    for (let u = 0.5; u < L; u += 1.5) {
+      Ln(u, 0.08, u + 0.5, sh - 0.08);
+      Ln(u, Wd - 0.08, u + 0.5, Wd - sh + 0.08);
+    }
+    const pw = Wd - 2 * sh;
+    const mid = Wd / 2;
     ctx.strokeStyle = 'rgba(255,255,255,0.9)';
     ctx.lineWidth = Math.max(1, scale * 0.08);
     // Axe central en pointillés
     ctx.setLineDash([scale * 0.8, scale * 0.6]);
-    if (horiz) line(ctx, P, x0 + 2, (y0 + y1) / 2, x1 - 2, (y0 + y1) / 2);
-    else line(ctx, P, (x0 + x1) / 2, y0 + 2, (x0 + x1) / 2, y1 - 2);
+    Ln(2.6, mid, L - 2.6, mid);
     ctx.setLineDash([]);
-    // Seuils ("piano")
+    // Seuils (« piano »)
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    const n = Math.max(2, Math.round((horiz ? f.h : f.w) * 2));
+    const n = Math.max(4, Math.round(pw * 2.4));
     for (let i = 0; i < n; i++) {
-      const o = (i + 0.25) / n;
-      const w2 = 0.5 / n;
-      if (horiz) {
-        for (const tx of [x0 + 0.2, x1 - 1.0]) {
-          quad(ctx, P, tx, y0 + o * f.h, tx + 0.8, y0 + (o + w2) * f.h);
-          ctx.fill();
-        }
-      } else {
-        for (const ty of [y0 + 0.2, y1 - 1.0]) {
-          quad(ctx, P, x0 + o * f.w, ty, x0 + (o + w2) * f.w, ty + 0.8);
-          ctx.fill();
-        }
+      const o = sh + 0.15 + ((i + 0.2) / n) * (pw - 0.3);
+      const w2 = ((pw - 0.3) / n) * 0.6;
+      for (const tu of [0.2, L - 1.0]) {
+        R(tu, o, tu + 0.8, o + w2);
+        ctx.fill();
       }
+    }
+    // Points de visée et zones de toucher des roues
+    for (const [u, len] of [[3.4, 1.1], [L - 4.5, 1.1]] as const) {
+      R(u, mid - pw * 0.32, u + len, mid - pw * 0.17);
+      ctx.fill();
+      R(u, mid + pw * 0.17, u + len, mid + pw * 0.32);
+      ctx.fill();
     }
     // Numéros de piste (QFU) aux deux seuils, orientés vers l'avion à l'atterrissage
     const labels: [number, number, string, number][] = horiz
@@ -298,22 +320,17 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
       ctx.transform(ex[0] - o[0], ex[1] - o[1], ey[0] - o[0], ey[1] - o[1], o[0], o[1]);
       ctx.rotate(rot);
       ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.font = `bold ${(horiz ? f.h : f.w) * 0.42}px system-ui, sans-serif`;
+      ctx.font = `bold ${pw * 0.42}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(txt, 0, 0);
       ctx.restore();
     }
-    // Bords
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = Math.max(1, scale * 0.04);
-    if (horiz) {
-      line(ctx, P, x0, y0 + 0.1, x1, y0 + 0.1);
-      line(ctx, P, x0, y1 - 0.1, x1, y1 - 0.1);
-    } else {
-      line(ctx, P, x0 + 0.1, y0, x0 + 0.1, y1);
-      line(ctx, P, x1 - 0.1, y0, x1 - 0.1, y1);
-    }
+    // Bords de la chaussée
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = Math.max(1, scale * 0.05);
+    Ln(0, sh + 0.06, L, sh + 0.06);
+    Ln(0, Wd - sh - 0.06, L, Wd - sh - 0.06);
   } else if (d.standSize) {
     // Tarmac en dalles de béton
     ctx.fillStyle = '#a3a9b1';

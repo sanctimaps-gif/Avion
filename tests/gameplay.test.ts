@@ -48,7 +48,7 @@ describe('construction', () => {
 
   it('un module de terminal isolé est signalé, puis fonctionne une fois raccordé', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 12 });
-    const r = place(s, 'checkin', 52, 60, 0);
+    const r = place(s, 'checkin', 52, 64, 0);
     finishBuilds(s);
     expect(getWorld(s).problems.get(r.building!.id)).toBe('pb.noTerminal');
     expect(getWorld(s).active.has(r.building!.id)).toBe(false);
@@ -80,7 +80,7 @@ describe('opérations', () => {
     const w = getWorld(s);
     expect(runwayStatus(s, w, w.runways[0])).toBe('rw.visibility');
     s.tier = 1;
-    const r = place(s, 'ils', 42, 40, 0);
+    const r = place(s, 'ils', 52, 40, 0);
     expect(r.ok).toBe(true);
     finishBuilds(s);
     const w2 = getWorld(s);
