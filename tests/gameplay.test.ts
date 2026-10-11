@@ -64,6 +64,9 @@ describe('construction', () => {
     const cafe = s.buildings.find((b) => b.type === 'cafe')!;
     expect(upgrade(s, cafe)).toBe(true);
     expect(cafe.level).toBe(2);
+    expect(cafe.buildRemaining).toBe(0);
+    expect(upgrade(s, cafe)).toBe(true);
+    expect(cafe.level).toBe(3);
     const n = s.buildings.length;
     expect(demolish(s, cafe)).toBe(true);
     expect(s.buildings.length).toBe(n - 1);

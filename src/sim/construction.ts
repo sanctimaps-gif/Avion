@@ -161,7 +161,7 @@ export function upgrade(s: GameState, b: Building): boolean {
   charge(s, 'construction', cost);
   b.level++;
   b.totalInvested += cost;
-  b.buildRemaining = Math.round(def.buildHours * 60 * 0.4);
+  // Amélioration instantanée : le bâtiment reste en service.
   b.condition = 100;
   invalidateWorld();
   addLog(s, 'info', 'log.upgraded', { name: 'b.' + b.type, level: b.level });
