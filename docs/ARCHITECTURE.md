@@ -66,6 +66,14 @@ véhicules, bâtiments, postes (S 4, M 5, L 7, XL 8 cases) et largeur des pistes
 de 0,6 case, `SHOULDER` dans `render/ground.ts`, où circulent pompiers, chasse-neige et véhicule
 d'inspection). Seule la longueur des pistes est raccourcie, sinon la carte serait dix fois plus grande.
 
+### Aéroport de départ
+
+`SMALL_LAYOUT` (`sim/state.ts`) pose le minimum d'un aéroport régional : piste, taxiway parallèle,
+trois postes devant l'aérogare, hangar, aire de carburant, caserne SSLIA, aviation générale, hélistation,
+tour, centre des opérations, bâtiment administratif, voies de service, dépose-minute, parkings
+(voyageurs, personnel, loueurs). Les engins d'escale circulent sur les voies de service
+(`render/serviceTraffic.ts`).
+
 ## Sauvegardes (`src/save`)
 
 - `storage.ts` : IndexedDB (transactions atomiques) → repli localStorage (écriture via clés

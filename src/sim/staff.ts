@@ -85,7 +85,7 @@ export function staffDaily(s: GameState): void {
   for (const c of STAFF_CATS) {
     const st = s.staff[c];
     const cov = staffCoverage(s, c);
-    let target = 60 + (st.wageMult - 1) * 120 + (cov >= 1 ? 10 : -35 * (1 - cov));
+    let target = 60 + (st.wageMult - 1) * 120 + (cov >= 1 ? 10 : -35 * (1 - cov)) + getWorld(s).cap.staffMorale;
     target = clamp(target, 5, 100);
     st.morale += (target - st.morale) * 0.25;
     if (st.training > 0) {

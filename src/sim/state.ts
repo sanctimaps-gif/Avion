@@ -143,31 +143,46 @@ function staffInit(): Record<StaffCat, StaffState> {
 
 type Placement = [string, number, number, 0 | 1];
 
+/**
+ * Aéroport de départ : le minimum d'un vrai aéroport régional. Piste au nord, taxiway
+ * parallèle, aire de trafic devant l'aérogare, hangar de maintenance, aire de carburant,
+ * caserne SSLIA, aviation générale, hélistation, tour, centre des opérations, bâtiment
+ * administratif, voies de service côté piste, dépose-minute et parkings au sud.
+ */
 const SMALL_LAYOUT: Placement[] = [
   ['runway_s', 28, 24, 0],
-  ['stand_s', 30, 29, 0],
+  ['hangar', 27, 29, 0],
+  ['fuel_depot', 24, 30, 0],
+  ['fire_station', 24, 34, 0],
   ['stand_s', 34, 29, 0],
-  ['terminal_s', 30, 33, 0],
-  ['checkin', 30, 37, 0],
-  ['security', 33, 37, 0],
-  ['baggage_claim', 36, 33, 1],
-  ['info_desk', 36, 36, 0],
-  ['cafe', 38, 34, 0],
-  ['parking_s', 41, 41, 0],
-  ['tower_s', 45, 29, 0],
-  ['trees', 46, 37, 0],
+  ['stand_s', 38, 29, 0],
+  ['stand_s', 42, 29, 0],
+  ['ga_apron', 47, 29, 0],
+  ['helipad', 53, 30, 0],
+  ['terminal_s', 35, 33, 0],
+  ['baggage_claim', 41, 33, 1],
+  ['info_desk', 41, 36, 0],
+  ['cafe', 43, 34, 0],
+  ['checkin', 35, 37, 0],
+  ['security', 38, 37, 0],
+  ['tower_s', 47, 34, 0],
+  ['ops_center', 50, 36, 0],
+  ['admin', 30, 36, 0],
+  ['parking_s', 36, 40, 0],
+  ['rental', 41, 40, 0],
+  ['staff_parking', 45, 40, 0],
   ['trees', 26, 41, 0],
   ['trees', 48, 45, 0],
+  ['trees', 30, 46, 0],
+  ['trees', 52, 44, 0],
 ];
 
 const MEDIUM_EXTRA: Placement[] = [
-  ['stand_m', 38, 29, 0],
-  ['fire_station', 47, 29, 0],
-  ['shop', 36, 37, 0],
-  ['checkin', 24, 37, 0],
-  ['terminal_s', 24, 33, 0],
-  ['security', 27, 37, 0],
-  ['deicing', 44, 34, 0],
+  ['shop', 41, 37, 0],
+  ['checkin', 43, 37, 0],
+  ['deicing', 24, 25, 0],
+  ['cargo', 48, 24, 0],
+  ['bus_station', 41, 42, 0],
 ];
 
 function applyLayout(s: GameState, layout: Placement[]): void {
@@ -178,17 +193,22 @@ function applyLayout(s: GameState, layout: Placement[]): void {
     const f = footprint(BUILDINGS[type], rot);
     for (let yy = b.y; yy < b.y + f.h; yy++) for (let xx = b.x; xx < b.x + f.w; xx++) s.map.terrain[yy * s.map.w + xx] = TERRAIN_GRASS;
   };
-  for (const [type, x, y, rot] of layout) add(type, x, y, rot);
-  // Taxiway parallèle à la piste et route d'accès depuis le bord sud.
-  for (let x = 29; x <= 42; x++) add('taxiway', x, 28);
-  for (let y = 39; y < MAP_H - OY; y++) add('road', 40, y);
-  for (let x = 30; x < 40; x++) add('road', x, 39);
-  if (layout.some((p) => p[1] === 24)) {
-    for (let x = 24; x < 30; x++) add('road', x, 39);
-    add('taxiway', 43, 28);
-    add('taxiway', 44, 28);
-    for (let y = 29; y < 37; y++) add('taxiway', 43, y);
+  // Enceinte côté piste dégagée (pelouses), comme sur un vrai aérodrome.
+  for (let y = 24; y < 40; y++) for (let x = 24; x < 56; x++) {
+    const i = (y + OY) * s.map.w + x + OX;
+    if (s.map.terrain[i] === TERRAIN_FOREST || s.map.terrain[i] === TERRAIN_FIELD) s.map.terrain[i] = TERRAIN_GRASS;
   }
+  for (const [type, x, y, rot] of layout) add(type, x, y, rot);
+  // Taxiway parallèle à la piste.
+  for (let x = 24; x <= 53; x++) add('taxiway', x, 28);
+  // Voies de service : le long des postes, vers le hangar, la caserne et l'aire de carburant.
+  for (let y = 33; y <= 38; y++) add('service_road', 34, y);
+  for (let x = 27; x <= 33; x++) add('service_road', x, 35);
+  for (let x = 24; x <= 26; x++) add('service_road', x, 33);
+  for (let y = 29; y <= 33; y++) add('service_road', 46, y);
+  // Dépose-minute devant l'aérogare et route d'accès depuis le bord sud.
+  for (let x = 24; x <= 55; x++) add('road', x, 39);
+  for (let y = 40; y < MAP_H - OY; y++) add('road', 40, y);
   for (const b of s.buildings) {
     // Les parcelles occupées par l'aménagement initial sont acquises.
     b.totalInvested = Math.round(b.totalInvested * 0.5);

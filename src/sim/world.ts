@@ -13,6 +13,8 @@ export interface StandInfo {
   contact: boolean;
   access: Pt[]; // cases de taxiway adjacentes
   reachable: boolean;
+  /** Une voie de service longe le poste (véhicules d'escale plus rapides). */
+  serviceRoad: boolean;
   center: Pt;
   rot: 0 | 1;
 }
@@ -51,6 +53,10 @@ export interface Capacities {
   research: number;
   training: number;
   green: number;
+  ga: number;
+  heli: number;
+  ops: number;
+  staffMorale: number;
   commerce: Record<string, { capacity: number; spend: number; count: number }>;
 }
 
@@ -303,7 +309,8 @@ function buildWorld(s: GameState): World {
       return nid > 0 && connectedTerminal.has(nid) && !!BUILDINGS[byId.get(nid)!.type].isTerminal;
     });
     if (!reachable) problems.set(b.id, 'pb.noTaxiway');
-    stands.push({ id: b.id, size: d.standSize, contact, access, reachable, center: { x: b.x + f.w / 2, y: b.y + f.h / 2 }, rot: b.rot });
+    const serviceRoad = border.some((p) => byId.get(occ[p.y * W + p.x])?.type === 'service_road');
+    stands.push({ id: b.id, size: d.standSize, contact, access, reachable, serviceRoad, center: { x: b.x + f.w / 2, y: b.y + f.h / 2 }, rot: b.rot });
   }
   for (const b of s.buildings) {
     const d = BUILDINGS[b.type];
@@ -321,7 +328,7 @@ function buildWorld(s: GameState): World {
   const cap: Capacities = {
     checkin: 0, security: 0, baggage: 0, gates: 0, hall: 0, parking: 0, power: 0, energyDemand: 0,
     runwayCapBase: 0, catchment: 0, info: 0, deicing: 0, snow: 0, fuel: 0, mro: 0, cargo: 0, safety: 0,
-    contracts: 0, research: 0, training: 0, green: 0, commerce: {},
+    contracts: 0, research: 0, training: 0, green: 0, ga: 0, heli: 0, ops: 0, staffMorale: 0, commerce: {},
   };
   for (const b of s.buildings) {
     const d = BUILDINGS[b.type];
@@ -349,6 +356,10 @@ function buildWorld(s: GameState): World {
     cap.research += (e.research ?? 0) * m;
     cap.training += (e.training ?? 0) * m;
     cap.green += e.green ?? 0;
+    cap.ga += (e.ga ?? 0) * m;
+    cap.heli += (e.heli ?? 0) * m;
+    cap.ops += (e.ops ?? 0) * m;
+    cap.staffMorale = Math.max(cap.staffMorale, (e.staffMorale ?? 0) * m);
     if (d.commerce) {
       const c = (cap.commerce[d.commerce.kind] ??= { capacity: 0, spend: d.commerce.spend, count: 0 });
       c.capacity += d.commerce.capacity * m;

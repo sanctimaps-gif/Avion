@@ -8,7 +8,7 @@ import { visibleFlights } from '../sim/flights';
 import { bFootprint, getWorld } from '../sim/world';
 import type { Building, Flight, GameState, Pt } from '../sim/types';
 import { daylight, flightPose, minuteOfDay, remainingRoute, serviceVehicles, sunAngle } from './common';
-import { drawGround, FLAT, SHOULDER } from './ground';
+import { drawGround, FLAT, gaSpots, SHOULDER } from './ground';
 import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type ViewKind } from './view';
 
 /**
@@ -27,6 +27,7 @@ import { activeList } from '../sim/incidents';
 import detailAsphaltUrl from '../assets/textures/detail_asphalte.jpg?url';
 import detailConcreteUrl from '../assets/textures/detail_beton.jpg?url';
 import { Traffic } from './traffic';
+import { ServiceTraffic } from './serviceTraffic';
 import { Crowd, forgetInterior, INTERIOR, interiorBuilding, interiorNightMats } from './interior3d';
 
 /** Informations de diagnostic WebGL (affichées dans les paramètres). */
@@ -55,6 +56,7 @@ export class View3D implements GameView {
   private crowd = new Crowd();
   private interiorIds: number[] = [];
   private traffic = new Traffic();
+  private service = new ServiceTraffic();
   private portals = new THREE.Group();
   private portalKey = '';
   /** Tracé bleu du roulage du vol sélectionné. */
@@ -245,8 +247,8 @@ export class View3D implements GameView {
     this.surfData.fill(0);
     for (const b of s.buildings) {
       const t = b.type;
-      const asph = t.startsWith('runway') || t === 'taxiway' || t === 'road' || t === 'parking_s';
-      const conc = t.startsWith('stand') || t === 'deicing';
+      const asph = t.startsWith('runway') || t === 'taxiway' || t === 'road' || t === 'service_road' || t === 'parking_s' || t === 'staff_parking';
+      const conc = t.startsWith('stand') || t === 'deicing' || t === 'ga_apron' || t === 'helipad';
       if (!asph && !conc) continue;
       const f = bFootprint(b);
       for (let y = b.y; y < b.y + f.h; y++) for (let x = b.x; x < b.x + f.w; x++) {
@@ -377,6 +379,20 @@ export class View3D implements GameView {
       // Orientée de la façade vers l'avion (−n).
       jw.rotation.y = Math.atan2(nz, -nx);
       g.add(jw);
+      return g;
+    }
+    if (b.type === 'ga_apron') {
+      // Petits avions privés (≈ 11 m) stationnés sur leurs emplacements, nez vers le marquage.
+      const g = new THREE.Group();
+      const colors = ['#dc2626', '#1d4ed8', '#f8fafc', '#16a34a', '#f59e0b'];
+      gaSpots(f.w, f.h).forEach(([px, py], i) => {
+        if ((b.id * 7 + i * 3) % 5 === 4) return;
+        const plane = importedAircraft('tp70', 1.05, colors[(b.id + i) % colors.length])?.obj;
+        if (!plane) return;
+        plane.position.set(b.x + px, 0, b.y + py);
+        plane.rotation.y = py < f.h / 2 ? -Math.PI / 2 : Math.PI / 2;
+        g.add(plane);
+      });
       return g;
     }
     const imp = importedBuilding(b.type, f.w, f.h);
@@ -526,6 +542,9 @@ export class View3D implements GameView {
       this.vehicles.setColorAt(vi, col.set(color));
       vi++;
     }
+    // Engins d'escale sur les voies de service.
+    this.service.update(s, fi.realTime, fi.simSpeed ?? 1);
+    if (useFleet) for (const v of this.service.poses()) this.fleet.add(v.model, v.x, v.y, v.hdg, v.color);
     if (useFleet) {
       this.staticFleet(s, fi.realTime);
       this.env.highwayPoses(fi.realTime).forEach((c, k) => this.fleet.add(CARS[(k * 3) % CARS.length], c.x, c.z, c.hdg, c.color));

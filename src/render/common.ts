@@ -13,6 +13,7 @@ export const GLYPH: Record<string, string> = {
   hotel: '🏨', parking_s: 'P', parking_m: 'P', bus_station: '🚌', train_station: '🚆', power_plant: '⚡', solar: '☀️',
   admin: '🏢', rnd: '🔬', training: '🎓', fire_station: '🚒', deicing: '❄️', snow_depot: '🚜', fuel_depot: '⛽',
   hangar: '🔧', cargo: '📦', ils: '📡', tower_s: '🗼', tower_l: '🗼', trees: '',
+  ga_apron: '🛩️', helipad: '🚁', ops_center: '🖥️', staff_parking: 'P',
 };
 
 export const TERRAIN_COLORS = ['#5f9e4f', '#3d7fb8', '#2f6b3a'];

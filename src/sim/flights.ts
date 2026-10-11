@@ -433,6 +433,8 @@ export function flightsTick(s: GameState): void {
           // Services au sol : nettoyage, avitaillement, catering, bagages, dégivrage si besoin.
           let dur = a.turnaround * 0.45 * Math.max(0.6, 1 + tech(s, 'turnaround'));
           dur /= Math.pow(groundEff, 0.8) * Math.pow(bagEff, 0.4);
+          // Voie de service le long du poste : les engins arrivent plus vite.
+          if (w.stands.find((x) => x.id === f.standId)?.serviceRoad) dur *= 0.85;
           if (s.settings.weather && wd.needsDeicing) {
             dur += w.cap.deicing > 0 ? 10 : 35;
             if (w.cap.deicing <= 0 && !f.delayReason) f.delayReason = 'delay.deicing';

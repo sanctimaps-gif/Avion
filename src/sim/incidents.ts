@@ -59,7 +59,8 @@ export function startIncident(s: GameState, type: string, duration?: number): In
   const def = INCIDENTS[type];
   if (!def) return null;
   const w = getWorld(s);
-  const dur = duration ?? withRng(s, (r) => r.int(def.durMin, def.durMax));
+  // Un centre des opérations coordonne les équipes : incidents résolus 25 % plus vite.
+  const dur = Math.round((duration ?? withRng(s, (r) => r.int(def.durMin, def.durMax))) * (w.cap.ops > 0 ? 0.75 : 1));
   const inc: Incident = {
     id: s.nextId++,
     type,

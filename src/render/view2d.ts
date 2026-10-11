@@ -12,6 +12,7 @@ import { ZOOM_MAX, ZOOM_MIN, type Camera, type FrameInfo, type GameView, type Vi
 import { drawWeather2D } from './weatherfx';
 import { drawRoof } from './roofs';
 import { Traffic } from './traffic';
+import { ServiceTraffic } from './serviceTraffic';
 
 /** Vue 2D du dessus (et base de la vue hybride). */
 const CACHE_PX = 24;
@@ -317,6 +318,7 @@ export class View2D implements GameView {
   }
 
   private traffic = new Traffic();
+  private service = new ServiceTraffic();
   private vehicles(s: GameState, P: Project, z: number, t: number, simSpeed: number): void {
     // Circulation routière : trajets sur le réseau, tunnels et parkings souterrains.
     const ctx = this.ctx;
@@ -364,6 +366,19 @@ export class View2D implements GameView {
       ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
       ctx.fillStyle = 'rgba(15,23,42,0.55)';
       ctx.fillRect(L * 0.05, -Wd / 2 + 1, L * 0.22, Wd - 2);
+      ctx.restore();
+    }
+    // Engins d'escale sur les voies de service
+    this.service.update(s, t, simSpeed);
+    for (const v of this.service.poses()) {
+      const [x, y] = P(v.x, v.y);
+      const L = 0.55 * z;
+      const Wd = 0.22 * z;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(v.hdg);
+      ctx.fillStyle = v.color ?? (v.model === 'camion_citerne' ? '#e2e8f0' : '#f59e0b');
+      ctx.fillRect(-L / 2, -Wd / 2, L, Wd);
       ctx.restore();
     }
   }

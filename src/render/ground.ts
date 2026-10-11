@@ -14,7 +14,7 @@ import type { Project } from './common';
 /** Largeur (cases) des accotements de chaque côté d'une piste. */
 export const SHOULDER = 0.6;
 
-export const FLAT = new Set(['runway_s', 'runway_m', 'runway_l', 'taxiway', 'road', 'stand_s', 'stand_m', 'stand_l', 'stand_xl', 'parking_s', 'deicing', 'solar']);
+export const FLAT = new Set(['runway_s', 'runway_m', 'runway_l', 'taxiway', 'road', 'service_road', 'ga_apron', 'helipad', 'staff_parking', 'stand_s', 'stand_m', 'stand_l', 'stand_xl', 'parking_s', 'deicing', 'solar']);
 
 function quad(ctx: CanvasRenderingContext2D, P: Project, x0: number, y0: number, x1: number, y1: number): void {
   const a = P(x0, y0);
@@ -207,7 +207,7 @@ export function drawGround(ctx: CanvasRenderingContext2D, s: GameState, P: Proje
 }
 
 function order(b: Building): number {
-  if (b.type === 'road') return 0;
+  if (b.type === 'road' || b.type === 'service_road') return 0;
   if (b.type === 'taxiway') return 1;
   if (b.type.startsWith('runway')) return 3;
   return 2;
@@ -233,20 +233,31 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
   quad(ctx, P, x0, y0, x1, y1);
   ctx.fill();
   ctx.lineWidth = Math.max(1, scale * 0.06);
-  if (b.type === 'road') {
+  if (b.type === 'road' || b.type === 'service_road') {
+    // Voie de service : axe blanc continu et rives jaunes (côté piste).
+    const svc = b.type === 'service_road';
+    const same = [svc ? 'service_road' : 'road'];
     ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-    ctx.setLineDash([scale * 0.2, scale * 0.2]);
+    if (!svc) ctx.setLineDash([scale * 0.2, scale * 0.2]);
     const cx = x0 + 0.5;
     const cy = y0 + 0.5;
-    if (sameAt(s, occ, b.x - 1, b.y, ['road'])) line(ctx, P, x0, cy, cx, cy);
-    if (sameAt(s, occ, b.x + 1, b.y, ['road'])) line(ctx, P, cx, cy, x1, cy);
-    if (sameAt(s, occ, b.x, b.y - 1, ['road'])) line(ctx, P, cx, y0, cx, cy);
-    if (sameAt(s, occ, b.x, b.y + 1, ['road'])) line(ctx, P, cx, cy, cx, y1);
+    if (sameAt(s, occ, b.x - 1, b.y, same)) line(ctx, P, x0, cy, cx, cy);
+    if (sameAt(s, occ, b.x + 1, b.y, same)) line(ctx, P, cx, cy, x1, cy);
+    if (sameAt(s, occ, b.x, b.y - 1, same)) line(ctx, P, cx, y0, cx, cy);
+    if (sameAt(s, occ, b.x, b.y + 1, same)) line(ctx, P, cx, cy, cx, y1);
     ctx.setLineDash([]);
+    if (svc) {
+      ctx.strokeStyle = 'rgba(250,204,21,0.7)';
+      ctx.lineWidth = Math.max(0.5, scale * 0.035);
+      if (!sameAt(s, occ, b.x, b.y - 1, same)) line(ctx, P, x0, y0 + 0.08, x1, y0 + 0.08);
+      if (!sameAt(s, occ, b.x, b.y + 1, same)) line(ctx, P, x0, y1 - 0.08, x1, y1 - 0.08);
+      if (!sameAt(s, occ, b.x - 1, b.y, same)) line(ctx, P, x0 + 0.08, y0, x0 + 0.08, y1);
+      if (!sameAt(s, occ, b.x + 1, b.y, same)) line(ctx, P, x1 - 0.08, y0, x1 - 0.08, y1);
+    }
   } else if (b.type === 'taxiway') {
     ctx.strokeStyle = 'rgba(250,204,21,0.45)';
     ctx.lineWidth = Math.max(0.5, scale * 0.04);
-    const tw = ['taxiway', 'runway', 'stand', 'deicing', 'hangar', 'cargo'];
+    const tw = ['taxiway', 'runway', 'stand', 'deicing', 'hangar', 'cargo', 'ga_apron'];
     if (!sameAt(s, occ, b.x, b.y - 1, tw)) line(ctx, P, x0, y0 + 0.06, x1, y0 + 0.06);
     if (!sameAt(s, occ, b.x, b.y + 1, tw)) line(ctx, P, x0, y1 - 0.06, x1, y1 - 0.06);
     if (!sameAt(s, occ, b.x - 1, b.y, tw)) line(ctx, P, x0 + 0.06, y0, x0 + 0.06, y1);
@@ -255,7 +266,7 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
     ctx.strokeStyle = '#facc15';
     const cx = x0 + 0.5;
     const cy = y0 + 0.5;
-    const t = ['taxiway', 'runway', 'stand', 'deicing', 'hangar', 'cargo'];
+    const t = ['taxiway', 'runway', 'stand', 'deicing', 'hangar', 'cargo', 'ga_apron'];
     let any = false;
     if (sameAt(s, occ, b.x - 1, b.y, t)) { line(ctx, P, x0, cy, cx, cy); any = true; }
     if (sameAt(s, occ, b.x + 1, b.y, t)) { line(ctx, P, cx, cy, x1, cy); any = true; }
@@ -370,7 +381,56 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
     ctx.textBaseline = 'middle';
     ctx.font = `bold ${Math.max(7, scale * 0.5)}px system-ui, sans-serif`;
     ctx.fillText(d.standSize, c[0], c[1]);
-  } else if (b.type === 'parking_s') {
+  } else if (b.type === 'ga_apron') {
+    // Aire en béton, emplacements en T jaunes et petits avions stationnés
+    ctx.fillStyle = '#a3a9b1';
+    quad(ctx, P, x0, y0, x1, y1);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(80,88,100,0.35)';
+    ctx.lineWidth = Math.max(0.5, scale * 0.025);
+    for (let x = x0 + 1; x < x1; x++) line(ctx, P, x, y0, x, y1);
+    for (let y = y0 + 1; y < y1; y++) line(ctx, P, x0, y, x1, y);
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = Math.max(1, scale * 0.05);
+    for (const [px, py] of gaSpots(f.w, f.h)) {
+      line(ctx, P, x0 + px - 0.45, y0 + py + 0.5, x0 + px + 0.45, y0 + py + 0.5);
+      line(ctx, P, x0 + px, y0 + py - 0.5, x0 + px, y0 + py + 0.5);
+    }
+    // Silhouettes des avions stationnés (mêmes emplacements qu'en 3D)
+    ctx.strokeStyle = '#f8fafc';
+    gaSpots(f.w, f.h).forEach(([px, py], i) => {
+      if ((b.id * 7 + i * 3) % 5 === 4) return;
+      const dir = py < f.h / 2 ? -1 : 1;
+      const cx = x0 + px;
+      const cy = y0 + py;
+      ctx.lineWidth = Math.max(1, scale * 0.12);
+      line(ctx, P, cx, cy - dir * 0.5, cx, cy + dir * 0.45);
+      ctx.lineWidth = Math.max(1, scale * 0.09);
+      line(ctx, P, cx - 0.5, cy - dir * 0.1, cx + 0.5, cy - dir * 0.1);
+      line(ctx, P, cx - 0.2, cy + dir * 0.4, cx + 0.2, cy + dir * 0.4);
+    });
+  } else if (b.type === 'helipad') {
+    // Aire d'atterrissage : cercle jaune et « H » blanc
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    const r = Math.min(f.w, f.h) * 0.38;
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = Math.max(1, scale * 0.09);
+    ctx.beginPath();
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * Math.PI * 2;
+      const p = P(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      if (i) ctx.lineTo(p[0], p[1]);
+      else ctx.moveTo(p[0], p[1]);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1, scale * 0.12);
+    const k = r * 0.5;
+    line(ctx, P, cx - k * 0.7, cy - k, cx - k * 0.7, cy + k);
+    line(ctx, P, cx + k * 0.7, cy - k, cx + k * 0.7, cy + k);
+    line(ctx, P, cx - k * 0.7, cy, cx + k * 0.7, cy);
+  } else if (b.type === 'parking_s' || b.type === 'staff_parking') {
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = Math.max(1, scale * 0.04);
     for (let i = 1; i < f.w * 2; i++) line(ctx, P, x0 + i / 2, y0 + 0.3, x0 + i / 2, y0 + f.h / 2 - 0.3);
@@ -388,6 +448,13 @@ function drawFlat(ctx: CanvasRenderingContext2D, s: GameState, b: Building, P: P
     quad(ctx, P, x0, y0, x1, y1);
     ctx.fill();
   }
+}
+
+/** Emplacements (centre, en cases depuis le coin) des avions d'aviation générale. */
+export function gaSpots(W: number, D: number): [number, number][] {
+  const out: [number, number][] = [];
+  for (let x = 0.9; x < W - 0.4; x += 1.3) for (const y of [0.95, D - 0.95]) out.push([x, y]);
+  return out;
 }
 
 /** Cache hors écran de la couche sol, reconstruit à chaque modification. */

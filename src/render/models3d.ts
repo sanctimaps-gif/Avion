@@ -403,7 +403,27 @@ export function buildingModel(type: string, W: number, D: number, level: number,
 export function flatDecor(type: string, W: number, D: number, seed: number): THREE.Group | null {
   const g = new THREE.Group();
   const r = rnd(seed);
-  if (type === 'parking_s') {
+  if (type === 'helipad') {
+    // Hélicoptère (≈ 13 m) : cabine, poutre de queue, rotor et patins
+    const h = new THREE.Group();
+    const body = new THREE.Mesh(geo('sphere', () => new THREE.SphereGeometry(1, 12, 8)), mat('#dc2626'));
+    body.scale.set(0.34, 0.22, 0.2);
+    body.position.y = 0.3;
+    add(h, body);
+    box(h, 0.12, 0.08, 0.32, mat('#1e293b', { metalness: 0.4, roughness: 0.2 }), 0.2, 0.32);
+    box(h, 0.7, 0.06, 0.06, mat('#dc2626'), -0.55, 0.36);
+    box(h, 0.04, 0.2, 0.12, mat('#f8fafc'), -0.88, 0.44);
+    cyl(h, 0.03, 0.12, mat('#334155'), 0, 0.56);
+    for (const a of [0.4, 0.4 + Math.PI / 2]) {
+      const blade = box(h, 1.2, 0.015, 0.06, mat('#111827'), 0, 0.62);
+      blade.rotation.y = a;
+    }
+    for (const z of [-0.16, 0.16]) box(h, 0.6, 0.025, 0.03, mat('#475569'), 0, 0.06, z);
+    h.rotation.y = 0.6;
+    add(g, h);
+    return g;
+  }
+  if (type === 'parking_s' || type === 'staff_parking') {
     for (let x = -W / 2 + 0.3; x < W / 2 - 0.2; x += 0.5) for (const z of [-D * 0.3, D * 0.3]) if (r() < 0.65) car(g, x + 0.2, z, Math.PI / 2, CAR_COLORS[Math.floor(r() * CAR_COLORS.length)]);
     for (const [x, z] of [[-W / 2 + 0.2, -D / 2 + 0.2], [W / 2 - 0.2, D / 2 - 0.2]]) {
       cyl(g, 0.03, 0.9, mat('#94a3b8'), x, 0.45, z);

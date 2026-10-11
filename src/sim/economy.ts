@@ -2,7 +2,7 @@ import { BUILDINGS, levelMult } from '../data/buildings';
 import { TIERS } from '../data/tiers';
 import { clamp } from '../core/format';
 import { addLog } from './log';
-import { tech, weatherDef } from './modifiers';
+import { demandMult, tech, weatherDef } from './modifiers';
 import { getWorld } from './world';
 import type { Building, DayRecord, GameState, Ledger, Loan } from './types';
 
@@ -89,6 +89,14 @@ export function economyMinute(s: GameState): void {
   const d = dailyFixed(s);
   charge(s, 'upkeep', d.total / 1440);
   charge(s, 'energy', d.energy / 1440);
+  // Aviation générale (avions privés, écoles) et hélicoptères : recettes régulières de jour.
+  const w = getWorld(s);
+  const h = (s.time % 1440) / 60;
+  if (h >= 7 && h < 21) {
+    // Recette journalière répartie sur les 14 heures d'activité (840 minutes).
+    if (w.cap.ga > 0) earn(s, 'ga', (1800 * w.cap.ga * demandMult(s)) / 840, firstActive(s, (t) => t === 'ga_apron'));
+    if (w.cap.heli > 0) earn(s, 'heli', (1100 * w.cap.heli * demandMult(s)) / 840, firstActive(s, (t) => t === 'helipad'));
+  }
 }
 
 /** Impute l'entretien de la journée à chaque bâtiment (rentabilité). */

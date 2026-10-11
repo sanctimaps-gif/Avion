@@ -32,15 +32,15 @@ describe('construction', () => {
 
   it('un poste n’est accessible que relié par taxiway à une piste', () => {
     const s = createGame({ name: 'T', mode: 'career', seed: 11 });
-    const r = place(s, 'stand_s', 34, 60, 0);
+    const r = place(s, 'stand_s', 60, 48, 0);
     expect(r.ok).toBe(true);
     finishBuilds(s);
     let st = getWorld(s).stands.find((x) => x.id === r.building!.id)!;
     expect(st.reachable).toBe(false);
     expect(getWorld(s).problems.get(r.building!.id)).toBe('pb.noTaxiway');
-    // Taxiway depuis le réseau existant (y=28) jusqu’au poste.
-    placeLine(s, 'taxiway', linePoints({ x: 37, y: 45 }, { x: 37, y: 45 }));
-    placeLine(s, 'taxiway', linePoints({ x: 36, y: 45 }, { x: 36, y: 61 }));
+    // Taxiway depuis le bout du taxiway parallèle (y=44) jusqu’au poste.
+    placeLine(s, 'taxiway', linePoints({ x: 62, y: 44 }, { x: 63, y: 44 }));
+    placeLine(s, 'taxiway', linePoints({ x: 63, y: 45 }, { x: 63, y: 47 }));
     finishBuilds(s);
     st = getWorld(s).stands.find((x) => x.id === r.building!.id)!;
     expect(st.reachable).toBe(true);
