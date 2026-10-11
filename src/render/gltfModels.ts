@@ -1,45 +1,48 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import terminalUrl from '../assets/models/terminal.glb?inline';
-import towerUrl from '../assets/models/tour_controle.glb?inline';
-import hangarUrl from '../assets/models/hangar.glb?inline';
-import fireUrl from '../assets/models/caserne_pompiers.glb?inline';
-import parkingUrl from '../assets/models/parking.glb?inline';
-import hotelUrl from '../assets/models/hotel.glb?inline';
-import propUrl from '../assets/models/turbopropulseur.glb?inline';
-import mediumUrl from '../assets/models/moyen_courrier.glb?inline';
-import carUrl from '../assets/models/vehicules/voiture.glb?inline';
-import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?inline';
-import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?inline';
-import plowUrl from '../assets/models/vehicules/chasse_neige.glb?inline';
-import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?inline';
-import towerBigUrl from '../assets/models/sketchfab/tour_controle_bs.glb?inline';
-import rearJetUrl from '../assets/models/sketchfab/avion3_bs.glb?inline';
-import shopUrl from '../assets/models/sketchfab/boutique.glb?inline';
-import cafeUrl from '../assets/models/sketchfab/cafe.glb?inline';
-import dutyFreeUrl from '../assets/models/sketchfab/hors_taxes.glb?inline';
-import officeUrl from '../assets/models/sketchfab/batiment_marin.glb?inline';
-import carParkUrl from '../assets/models/sketchfab/parking.glb?inline';
-import busStopUrl from '../assets/models/sketchfab/abribus.glb?inline';
-import stationUrl from '../assets/models/sketchfab/gare.glb?inline';
-import forestUrl from '../assets/models/sketchfab/foret.glb?inline';
-import cityBusUrl from '../assets/models/sketchfab/bus_ville.glb?inline';
-import policeUrl from '../assets/models/sketchfab/police.glb?inline';
-import trainUrl from '../assets/models/sketchfab/train_sf.glb?inline';
-import a380Url from '../assets/models/sketchfab/a380.glb?inline';
-import powerUrl from '../assets/models/sketchfab/centrale.glb?inline';
-import fuelStationUrl from '../assets/models/sketchfab/station.glb?inline';
-import solarUrl from '../assets/models/sketchfab/solaire.glb?inline';
-import cargoUrl from '../assets/models/sketchfab/hangar_fret.glb?inline';
-import adminUrl from '../assets/models/sketchfab/immeuble.glb?inline';
-import termPack1Url from '../assets/models/pack/terminal_pack1.glb?inline';
-import termPack2Url from '../assets/models/pack/terminal_pack2.glb?inline';
-import stairsUrl from '../assets/models/pack/escalier_pack.glb?inline';
-import fireTruckPackUrl from '../assets/models/pack/camion_pompiers_pack.glb?inline';
-import apronBusUrl from '../assets/models/pack/bus_piste_pack.glb?inline';
-import bagPackUrl from '../assets/models/pack/train_bagages_pack.glb?inline';
-import a320Url from '../assets/models/pack/a320.glb?inline';
-import a330Url from '../assets/models/pack/a330.glb?inline';
+import terminalUrl from '../assets/models/terminal.glb?url';
+import towerUrl from '../assets/models/tour_controle.glb?url';
+import hangarUrl from '../assets/models/hangar.glb?url';
+import fireUrl from '../assets/models/caserne_pompiers.glb?url';
+import parkingUrl from '../assets/models/parking.glb?url';
+import hotelUrl from '../assets/models/hotel.glb?url';
+import mediumUrl from '../assets/models/moyen_courrier.glb?url';
+import carUrl from '../assets/models/vehicules/voiture.glb?url';
+import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?url';
+import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?url';
+import plowUrl from '../assets/models/vehicules/chasse_neige.glb?url';
+import deicerUrl from '../assets/models/vehicules/engin_degivrage.glb?url';
+import towerBigUrl from '../assets/models/sketchfab/tour_controle_bs.glb?url';
+import rearJetUrl from '../assets/models/sketchfab/avion3_bs.glb?url';
+import shopUrl from '../assets/models/sketchfab/boutique.glb?url';
+import cafeUrl from '../assets/models/sketchfab/cafe.glb?url';
+import dutyFreeUrl from '../assets/models/sketchfab/hors_taxes.glb?url';
+import officeUrl from '../assets/models/sketchfab/batiment_marin.glb?url';
+import carParkUrl from '../assets/models/sketchfab/parking.glb?url';
+import busStopUrl from '../assets/models/sketchfab/abribus.glb?url';
+import stationUrl from '../assets/models/sketchfab/gare.glb?url';
+import forestUrl from '../assets/models/sketchfab/foret.glb?url';
+import cityBusUrl from '../assets/models/sketchfab/bus_ville.glb?url';
+import policeUrl from '../assets/models/sketchfab/police.glb?url';
+import trainUrl from '../assets/models/sketchfab/train_sf.glb?url';
+import q400Url from '../assets/models/sketchfab/q400.glb?url';
+import beltUrl from '../assets/models/sketchfab/tapis_bagages.glb?url';
+import cateringUrl from '../assets/models/sketchfab/catering.glb?url';
+import carS13Url from '../assets/models/sketchfab/voiture_s13.glb?url';
+import a380Url from '../assets/models/sketchfab/a380.glb?url';
+import powerUrl from '../assets/models/sketchfab/centrale.glb?url';
+import fuelStationUrl from '../assets/models/sketchfab/station.glb?url';
+import solarUrl from '../assets/models/sketchfab/solaire.glb?url';
+import cargoUrl from '../assets/models/sketchfab/hangar_fret.glb?url';
+import adminUrl from '../assets/models/sketchfab/immeuble.glb?url';
+import termPack1Url from '../assets/models/pack/terminal_pack1.glb?url';
+import termPack2Url from '../assets/models/pack/terminal_pack2.glb?url';
+import stairsUrl from '../assets/models/pack/escalier_pack.glb?url';
+import fireTruckPackUrl from '../assets/models/pack/camion_pompiers_pack.glb?url';
+import apronBusUrl from '../assets/models/pack/bus_piste_pack.glb?url';
+import bagPackUrl from '../assets/models/pack/train_bagages_pack.glb?url';
+import a320Url from '../assets/models/pack/a320.glb?url';
+import a330Url from '../assets/models/pack/a330.glb?url';
 import { nightMats } from './models3d';
 
 /**
@@ -47,14 +50,17 @@ import { nightMats } from './models3d';
  * Chaque modèle est mis à l'échelle de l'emprise du bâtiment dans le jeu ;
  * les bâtiments sans modèle gardent leur version procédurale.
  */
+/** Mobilier de la vue intérieure (« int_comptoir », « int_sieges »…). */
+const INTERIOR_PROPS = import.meta.glob('../assets/models/interieur/*.glb', { query: '?url', import: 'default', eager: true }) as Record<string, string>;
+
 const SOURCES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(INTERIOR_PROPS).map(([k, v]) => ['int_' + k.split('/').pop()!.replace('.glb', ''), v])),
   terminal: terminalUrl,
   tour_controle: towerUrl,
   hangar: hangarUrl,
   caserne_pompiers: fireUrl,
   parking: parkingUrl,
   hotel: hotelUrl,
-  turbopropulseur: propUrl,
   moyen_courrier: mediumUrl,
   voiture: carUrl,
   bus: cityBusUrl,
@@ -80,6 +86,10 @@ const SOURCES: Record<string, string> = {
   gare: stationUrl,
   foret: forestUrl,
   a380: a380Url,
+  q400: q400Url,
+  tapis_bagages: beltUrl,
+  catering: cateringUrl,
+  voiture_s13: carS13Url,
   centrale: powerUrl,
   station_carburant: fuelStationUrl,
   solaire: solarUrl,
@@ -93,8 +103,8 @@ const SOURCES: Record<string, string> = {
   a330: a330Url,
 };
 
-/** Échelle des véhicules : 1 case ≈ 8 m (légèrement exagérée pour rester lisible à côté des avions). */
-export const METERS_PER_TILE = 8;
+/** Échelle des véhicules : 1 case ≈ 11 m, comme les avions (un A320 de 38 m mesure environ 3,4 cases). */
+export const METERS_PER_TILE = 11;
 
 export interface VehiclePart {
   geometry: THREE.BufferGeometry;
@@ -133,6 +143,24 @@ export function vehicleParts(name: string, tintMaterial?: string): VehiclePart[]
 }
 
 /**
+ * Pièces d'un objet de décor pour l'instanciation : centré sur l'origine, posé au sol,
+ * en unités du modèle ; `size` donne ses dimensions (pour la mise à l'échelle).
+ */
+export function propParts(name: string): { parts: { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[]; size: THREE.Vector3 } | null {
+  const t = templates.get(name);
+  if (!t) return null;
+  t.obj.updateMatrixWorld(true);
+  const c = t.box.getCenter(new THREE.Vector3());
+  const base = new THREE.Matrix4().makeTranslation(-c.x, -t.box.min.y, -c.z);
+  const parts: { geometry: THREE.BufferGeometry; material: THREE.Material; matrix: THREE.Matrix4 }[] = [];
+  t.obj.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh) parts.push({ geometry: m.geometry, material: m.material as THREE.Material, matrix: base.clone().multiply(m.matrixWorld) });
+  });
+  return { parts, size: t.box.getSize(new THREE.Vector3()) };
+}
+
+/**
  * Bâtiment du jeu → [modèle, rotation pour orienter la façade côté pistes (−Z),
  * hauteur max en cases, écrasement vertical autorisé pour respecter cette hauteur, hauteur min en cases (étirement)].
  */
@@ -166,7 +194,7 @@ const BUILDING_MODELS: Record<string, [string, number, number?, boolean?, number
 
 /** Avion du jeu → modèle. */
 const AIRCRAFT_MODELS: Record<string, string> = {
-  tp70: 'turbopropulseur',
+  tp70: 'q400',
   rj95: 'avion3_bs',
   nb180: 'moyen_courrier',
   nb220: 'a320',
@@ -182,12 +210,11 @@ const LIVERY = new Set(['red', 'blue', 'navy']);
 const templates = new Map<string, { obj: THREE.Object3D; box: THREE.Box3 }>();
 let loading: Promise<void> | null = null;
 
-function decode(dataUrl: string): ArrayBuffer {
-  const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out.buffer;
+/** Lit un modèle (fichier à côté du jeu, ou URL data: en développement). */
+async function fetchModel(url: string): Promise<ArrayBuffer> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${url}`);
+  return r.arrayBuffer();
 }
 
 /** Charge (une seule fois) tous les modèles ; appelle onReady quand c'est fait. */
@@ -197,7 +224,7 @@ export function loadModels(): Promise<void> {
   loading = Promise.all(
     Object.entries(SOURCES).map(async ([name, url]) => {
       try {
-        const gltf = await loader.parseAsync(decode(url), '');
+        const gltf = await loader.parseAsync(await fetchModel(url), '');
         const obj = gltf.scene;
         obj.traverse((o) => {
           const m = o as THREE.Mesh;
@@ -271,6 +298,26 @@ export function importedBuilding(type: string, W: number, D: number): THREE.Obje
 
 const liveryCache = new Map<string, THREE.Material>();
 
+/** Matériau texturé dont le canal alpha (masque) reçoit la couleur de la compagnie. */
+function liveryMaterial(base: THREE.MeshStandardMaterial, color: string): THREE.MeshStandardMaterial {
+  const m = base.clone();
+  m.transparent = false;
+  m.alphaTest = 0;
+  const livery = new THREE.Color(color);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uLivery = { value: livery };
+    sh.fragmentShader = 'uniform vec3 uLivery;\n' + sh.fragmentShader.replace(
+      '#include <map_fragment>',
+      `#ifdef USE_MAP
+        vec4 texel = texture2D( map, vMapUv );
+        diffuseColor.rgb *= mix( texel.rgb, uLivery, texel.a );
+      #endif`,
+    );
+  };
+  m.customProgramCacheKey = () => 'livery';
+  return m;
+}
+
 /**
  * Avion importé : nez vers +X (convention du jeu), longueur = `length` cases,
  * couleurs de la compagnie. Renvoie aussi les hélices à animer.
@@ -284,7 +331,16 @@ export function importedAircraft(aircraft: string, length: number, color: string
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     const mat = m.material as THREE.MeshStandardMaterial;
-    if (mat && LIVERY.has(mat.name)) {
+    if (mat && mat.name === 'livtex') {
+      // Texture dont l'alpha marque la zone de livrée : peinte à la couleur de la compagnie.
+      const key = mat.uuid + color;
+      let lm = liveryCache.get(key);
+      if (!lm) {
+        lm = liveryMaterial(mat, color);
+        liveryCache.set(key, lm);
+      }
+      m.material = lm;
+    } else if (mat && LIVERY.has(mat.name)) {
       const key = mat.name + color;
       let lm = liveryCache.get(key);
       if (!lm) {

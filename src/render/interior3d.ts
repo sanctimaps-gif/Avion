@@ -3,6 +3,7 @@ import { BUILDINGS } from '../data/buildings';
 import { bFootprint } from '../sim/world';
 import type { Building, GameState } from '../sim/types';
 import { geo, mat } from './models3d';
+import { propParts } from './gltfModels';
 
 /**
  * Vue intérieure : les bâtiments de l'aérogare sont dessinés en coupe (sans toit)
@@ -66,6 +67,24 @@ class Inst {
   }
   cyl(m: THREE.MeshStandardMaterial, x: number, y: number, z: number, r: number, h: number, rz = r): void {
     this.add(cylGeo(), m, x, y + h / 2, z, r, h, rz);
+  }
+  /**
+   * Objet de décor importé, mis à l'échelle pour que sa largeur (axe x du modèle) vaille `w` cases ;
+   * renvoie l'échelle appliquée (0 si le modèle n'est pas disponible).
+   */
+  model(name: string, x: number, y: number, z: number, w: number, rot = 0): number {
+    const p = propParts(name);
+    if (!p) return 0;
+    const k = w / Math.max(1e-6, p.size.x);
+    this.q.setFromAxisAngle(this.y, rot);
+    const place = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), this.q, new THREE.Vector3(k, k, k));
+    for (const part of p.parts) {
+      const key = part.geometry.uuid + part.material.uuid;
+      let e = this.sets.get(key);
+      if (!e) this.sets.set(key, (e = { g: part.geometry, m: part.material, list: [] }));
+      e.list.push(place.clone().multiply(part.matrix));
+    }
+    return k;
   }
   build(g: THREE.Group): void {
     for (const e of this.sets.values()) {
@@ -166,10 +185,12 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
   const screenM = m('#1e3a8a', { emissive: new THREE.Color('#60a5fa'), emissiveIntensity: 0.6 }, 'iscreen');
   const amberM = m('#111827', { emissive: new THREE.Color('#fbbf24'), emissiveIntensity: 0.7 }, 'iamber');
   const plant = (x: number, z: number): void => {
+    if (I.model('int_plante', x, 0.04, z, 0.14)) return;
     I.cyl(m(C.pot, {}, 'ipot'), x, 0.04, z, 0.05, 0.06);
     I.add(geo('ileaf', () => new THREE.IcosahedronGeometry(1, 0)), m(C.plant, { flatShading: true }, 'ileaf'), x, 0.16, z, 0.08, 0.1, 0.08);
   };
   const board = (x: number, z: number, rot = 0): void => {
+    if (I.model('int_panneau', x, 0.04, z, 0.03, rot + Math.PI / 2)) return;
     I.box(m(C.metal, {}, 'imetal'), x, 0.04, z, 0.02, 0.28, 0.02, rot);
     I.box(amberM, x, 0.28, z, 0.32, 0.1, 0.02, rot);
   };
@@ -179,7 +200,14 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
     const counterM = m(C.counter, {}, 'icounter');
     const topM = m(C.counterTop, {}, 'itop');
     const beltM = m(C.belt, {}, 'ibelt');
-    for (let x = x0 + 0.15; x <= x1 - 0.15; x += 0.32) {
+    // Module importé : deux comptoirs et leur tapis (6,2 m) ; tourné pour s'aligner sur la rangée.
+    if (propParts('int_comptoir')) {
+      for (let x = x0 + 0.32; x <= x1 - 0.3; x += 0.66) {
+        const k = I.model('int_comptoir', x, 0.04, z0, 0.5, Math.PI / 2);
+        void k;
+        spots.staff.push(W(x - 0.17, z0 + 0.16), W(x + 0.17, z0 + 0.16));
+      }
+    } else for (let x = x0 + 0.15; x <= x1 - 0.15; x += 0.32) {
       I.box(counterM, x, 0.04, z0, 0.22, 0.17, 0.11);
       I.box(topM, x, 0.21, z0, 0.23, 0.015, 0.12);
       I.box(beltM, x + 0.14, 0.04, z0 + 0.02, 0.06, 0.06, 0.16);
@@ -215,6 +243,11 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
     for (let i = 0; i < n; i++) {
       const x = x0 + step * (i + 0.5);
       const archM = m(C.arch, {}, 'iarch');
+      if (I.model('int_surete', x + 0.1, 0.04, z0, 0.52)) {
+        spots.staff.push(W(x - 0.15, z0 + 0.12), W(x + 0.34, z0));
+        for (let k = 0; k < Math.floor(queueDepth / 0.09); k++) spots.security.push(W(x - 0.04 + ((k % 2) * 0.08), z0 - 0.3 - k * 0.085));
+        continue;
+      }
       I.box(archM, x - 0.07, 0.04, z0, 0.03, 0.34, 0.06);
       I.box(archM, x + 0.07, 0.04, z0, 0.03, 0.34, 0.06);
       I.box(archM, x, 0.36, z0, 0.17, 0.03, 0.06);
@@ -238,6 +271,14 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
     const seatM = m(C.seat, {}, 'iseat');
     const seat2M = m(C.seat2, {}, 'iseat2');
     const legM = m(C.metal, {}, 'imetal');
+    if (propParts('int_sieges')) {
+      // Îlots importés : deux sièges de chaque côté d'une tablette.
+      for (let z = z0 + 0.12; z <= z1; z += 0.34) for (let x = x0 + 0.1; x <= x1 - 0.1; x += 0.24) {
+        const k = I.model('int_sieges', x, 0.04, z, 0.2);
+        for (const [ox, oz] of [[-0.33, -0.6], [0.33, -0.6], [-0.33, 0.6], [0.33, 0.6]]) spots.seats.push(W(x + ox * k, z + oz * k));
+      }
+      return;
+    }
     let row = 0;
     for (let z = z0; z <= z1; z += 0.26, row++) {
       for (let x = x0; x <= x1 - 0.5; x += 0.62) {
@@ -254,6 +295,10 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
   };
   const gateDesks = (x0: number, x1: number, z: number): void => {
     for (let x = x0 + 0.6; x < x1 - 0.3; x += 2) {
+      if (I.model('int_porte', x, 0.04, z, 0.22, Math.PI)) {
+        spots.staff.push(W(x, z + 0.1));
+        continue;
+      }
       I.box(m(C.counter, {}, 'icounter'), x, 0.04, z, 0.3, 0.16, 0.1);
       I.box(screenM, x, 0.2, z + 0.03, 0.12, 0.08, 0.01);
       I.box(m(C.metal, {}, 'imetal'), x + 0.3, 0.04, z + 0.05, 0.02, 0.3, 0.02);
@@ -301,6 +346,10 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
       plant(-L / 2 + 0.25, -D / 2 + 0.3);
       plant(L / 2 - 0.25, -D / 2 + 0.3);
       walkLanes([-D / 2 + 0.2, -D / 2 + D * 0.42, D / 2 - D * 0.36]);
+      for (let x = -L / 2 + 0.8; x < L / 2 - 0.5; x += 1.6) {
+        I.model('int_poubelle', x, 0.04, -D / 2 + 0.12, 0.05);
+        I.model(x % 3.2 < 1.6 ? 'int_dab' : 'int_pub', x + 0.3, 0.04, -D / 2 + 0.12, 0.08);
+      }
       break;
     }
     case 'pier':
@@ -344,11 +393,14 @@ export function interiorBuilding(s: GameState, b: Building): THREE.Group {
     }
     case 'cafe':
     case 'restaurant':
-      I.box(m(C.wood, {}, 'iwood'), 0, 0.04, D / 2 - 0.3, L * 0.7, 0.17, 0.12);
-      I.box(m('#111827', {}, 'imachine'), -L * 0.2, 0.21, D / 2 - 0.3, 0.1, 0.08, 0.08);
+      // Kiosque importé (comptoir, machines) au fond, sinon comptoir simple.
+      if (!I.model('int_kiosque', 0, 0.04, D / 2 - 0.42, Math.min(L * 0.6, 0.9), Math.PI / 2)) {
+        I.box(m(C.wood, {}, 'iwood'), 0, 0.04, D / 2 - 0.3, L * 0.7, 0.17, 0.12);
+        I.box(m('#111827', {}, 'imachine'), -L * 0.2, 0.21, D / 2 - 0.3, 0.1, 0.08, 0.08);
+      }
       I.box(amberM, 0, 0.38, D / 2 - 0.12, L * 0.5, 0.08, 0.02);
       spots.staff.push(W(-L * 0.15, D / 2 - 0.18), W(L * 0.15, D / 2 - 0.18));
-      tables(-L / 2 + 0.3, L / 2 - 0.3, -D / 2 + 0.3, D / 2 - 0.65, b.type === 'restaurant' ? 4 : 2);
+      tables(-L / 2 + 0.3, L / 2 - 0.3, -D / 2 + 0.3, D / 2 - 0.85, b.type === 'restaurant' ? 4 : 2);
       break;
     case 'shop':
     case 'dutyfree':

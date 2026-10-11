@@ -6,10 +6,30 @@ import { getBounds as gb } from '@gltf-transform/core';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { statSync, mkdirSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 const [inDir, outDir, only] = process.argv.slice(2);
 // ratio : part de triangles gardée ; tex : taille max des textures ; loose : simplification sans normales
 // len : longueur cible en mètres selon l'axe long (véhicules) ; rotY : rotation (rad) ; copies : [n, pas en m] le long de X
 const JOBS = {
+  // Mobilier de la vue intérieure (Airport Pack Total), couleurs de sommets
+  int_comptoir: { src: 'comptoir.glb', ratio: 0.12, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_surete: { src: 'surete.glb', ratio: 0.1, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_sieges: { src: 'sieges.glb', ratio: 0.035, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_porte: { src: 'porte.glb', ratio: 0.15, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_kiosque: { src: 'kiosque.glb', ratio: 0.1, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_poubelle: { src: 'poubelle.glb', ratio: 0.4, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_pub: { src: 'pub.glb', ratio: 0.25, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_panneau: { src: 'panneau.glb', ratio: 0.35, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_dab: { src: 'dab.glb', ratio: 0.4, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_plante: { src: 'plante.glb', ratio: 0.06, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_poteau: { src: 'poteau.glb', ratio: 0.5, tex: 64, loose: true, bake: true, err: 0.05 },
+  int_valise: { src: 'valise.glb', ratio: 0.08, tex: 64, loose: true, bake: true, err: 0.05 },
+
+  // Lot 5 (exp5 : exports GLB)
+  q400: { src: 'q400.glb', ratio: 0.5, tex: 1024, swapTex: ['livery_Body.png', 'livery_Wings.png', 'livery_Engine.png'].map((f) => '../pack5/bombardier-dash-q400-qantas-link/textures/' + f) },
+  tapis_bagages: { src: 'belt.glb', ratio: 1, tex: 256, len: 8 },
+  catering: { src: 'catering.glb', ratio: 0.08, tex: 256, loose: true, len: 9, metal: true, flip: true, recolor: { M_Glass: [0.06, 0.09, 0.15], M_Mirror: [0.2, 0.2, 0.22] } },
+  voiture_s13: { src: 'nissan.glb', ratio: 0.012, tex: 256, loose: true, len: 4.5, flip: true, rename: { 'Primary Body Paint': 'red' } },
   // Lot 4 (dossier exp4 : exports GLB des fichiers OBJ/DAE/FBX)
   a380: { src: 'a380.glb', ratio: 0.015, tex: 512, loose: true, bake: true },
   entrepot: { src: 'entrepot.glb', ratio: 0.1, tex: 256, loose: true },
@@ -39,6 +59,8 @@ for (const [out, j] of Object.entries(JOBS)) {
   const doc = await io.read(`${inDir}/${j.src}`);
   // Nuages de points et lignes : supprimés.
   for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) if (p.getMode() !== 4) p.dispose();
+  if (j.rename) for (const m of doc.getRoot().listMaterials()) if (j.rename[m.getName()]) m.setName(j.rename[m.getName()]);
+  if (j.recolor) for (const m of doc.getRoot().listMaterials()) if (j.recolor[m.getName()]) m.setBaseColorFactor([...j.recolor[m.getName()], 1]);
   if (j.drop) for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) if (j.drop.test(p.getMaterial()?.getName() ?? '')) p.dispose();
   if (j.ground !== undefined) {
     // Parties souterraines et grand sol plat retirés (le sol du jeu les remplace).
@@ -128,7 +150,9 @@ for (const [out, j] of Object.entries(JOBS)) {
     const pivot = doc.createNode('pivot');
     const long = Math.max(sx, sz); const s = j.len / long;
     pivot.setScale([s, s, s]);
-    if (sx > sz) pivot.setRotation([0, Math.SQRT1_2, 0, Math.SQRT1_2]);
+    // Axe long → Z ; `flip` : demi-tour (avant du véhicule vers +Z).
+    const q1 = sx > sz ? [0, Math.SQRT1_2, 0, Math.SQRT1_2] : [0, 0, 0, 1];
+    pivot.setRotation(j.flip ? [0, q1[3], 0, -q1[1]] : q1);
     for (const n of sc.listChildren()) { sc.removeChild(n); pivot.addChild(n); }
     sc.addChild(pivot);
     await doc.transform(flatten());
@@ -140,7 +164,20 @@ for (const [out, j] of Object.entries(JOBS)) {
     await doc.transform(center({ pivot: 'below' }));
     if (j.frontAtOrigin) { const zmax = gb(sc).max[2]; for (const c of sc.listChildren()) { const t = c.getTranslation(); c.setTranslation([t[0], t[1], t[2] - zmax]); } }
   }
-  await doc.transform(textureCompress({ encoder: sharp, resize: [j.tex, j.tex] }), textureCompress({ encoder: sharp, targetFormat: 'jpeg' }), prune(), quantize());
+  await doc.transform(textureCompress({ encoder: sharp, resize: [j.tex, j.tex] }), ...(j.swapTex ? [] : [textureCompress({ encoder: sharp, targetFormat: 'jpeg' })]), prune(), quantize());
+  // (après la compression : celle-ci retirerait l'alpha d'un matériau opaque)
+  if (j.swapTex) {
+    // Textures RGBA (masque de livrée dans l'alpha) : le navigateur les a exportées sans alpha ;
+    // chaque texture est remplacée par le fichier d'origine dont la couleur moyenne est la plus proche.
+    const files = await Promise.all(j.swapTex.map(async (f) => ({ f, buf: await readFile(f), mean: (await sharp(f).removeAlpha().stats()).channels.map((c) => c.mean) })));
+    for (const tx of doc.getRoot().listTextures()) {
+      const st = await sharp(Buffer.from(tx.getImage())).removeAlpha().stats();
+      const m = st.channels.map((c) => c.mean);
+      let best = null, bd = Infinity;
+      for (const c of files) { const d = [0, 1, 2].reduce((a, i) => a + (c.mean[i] - m[i]) ** 2, 0); if (d < bd) { bd = d; best = c; } }
+      if (best && bd < 400) { tx.setImage(new Uint8Array(best.buf)); tx.setMimeType('image/png'); }
+    }
+  }
   const path = `${outDir}/${out}.glb`;
   await io.write(path, doc);
   const b = gb(doc.getRoot().getDefaultScene());

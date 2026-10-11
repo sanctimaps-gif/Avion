@@ -21,7 +21,7 @@ const TEX_PX = 24;
 import { buildingModel, flatDecor, geo, jetway, mat, nightMats } from './models3d';
 import { hasOwnJetways, importedAircraft, importedBuilding, loadModels, modelsLoaded } from './gltfModels';
 import { Environment } from './env3d';
-import { VehicleFleet, type VehicleModel } from './vehicles3d';
+import { VehicleFleet } from './vehicles3d';
 import { WEATHER } from '../data/weather';
 import { activeList } from '../sim/incidents';
 import { Crowd, forgetInterior, INTERIOR, interiorBuilding, interiorNightMats } from './interior3d';
@@ -442,7 +442,7 @@ export class View3D implements GameView {
       const z = vertical ? b.y + ph : b.y + 0.35;
       const color = ['#ef4444', '#3b82f6', '#f8fafc', '#f59e0b', '#111827', '#9ca3af'][i % 6];
       if (useFleet) {
-        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
+        this.fleet.add(i % 11 === 0 ? 'bus' : i % 13 === 6 ? 'police' : i % 2 ? 'voiture_s13' : 'voiture', x, z, vertical ? Math.PI / 2 : 0, color);
         continue;
       }
       m.makeTranslation(x, 0.13, z);
@@ -452,7 +452,7 @@ export class View3D implements GameView {
     }
     if (useFleet) {
       this.staticFleet(s, fi.realTime);
-      for (const c of this.env.highwayPoses(fi.realTime)) this.fleet.add('voiture', c.x, c.z, c.hdg, c.color);
+      this.env.highwayPoses(fi.realTime).forEach((c, k) => this.fleet.add(k % 2 ? 'voiture_s13' : 'voiture', c.x, c.z, c.hdg, c.color));
       this.fleet.end();
     }
     this.env.boxCars = !useFleet;
@@ -475,15 +475,31 @@ export class View3D implements GameView {
       this.fleet.add('tracteur_repoussage', p.x + Math.cos(p.hdg) * a.length * 0.62, p.y + Math.sin(p.hdg) * a.length * 0.62, p.hdg + Math.PI);
       return;
     }
-    const vs = serviceVehicles(f, t);
     const deice = s.settings.weather && WEATHER[s.weather.current.kind].needsDeicing && getWorld(s).cap.deicing > 0;
-    vs.forEach((v, i) => {
-      const hdg = Math.atan2(v.y - p.y, v.x - p.x) + Math.PI / 2;
-      let model: VehicleModel;
-      if (f.phase === 'servicing') model = i === 0 ? 'camion_citerne' : i === 1 ? 'train_bagages' : deice ? 'engin_degivrage' : 'tracteur_repoussage';
-      else model = f.contact ? 'train_bagages' : 'bus_piste';
-      this.fleet.add(model, v.x, v.y, hdg);
-    });
+    if (f.phase === 'servicing') {
+      // Chaque service a son véhicule à sa place autour de l'avion ; en mode contrôleur,
+      // seuls les services lancés et en cours sont visibles.
+      const L = a.length;
+      const fx = Math.cos(p.hdg);
+      const fy = Math.sin(p.hdg);
+      // Côté passagers (portes, escalier) : (-fy, fx) ; côté service : l'opposé.
+      const at = (fwd: number, side: number) => ({ x: p.x + fx * fwd * L - fy * side * L, y: p.y + fy * fwd * L + fx * side * L });
+      const toward = (side: number) => Math.atan2(-Math.sign(side) * fx, Math.sign(side) * fy);
+      const on = (k: 'fuel' | 'bags' | 'catering' | 'cleaning') => !f.svc || (f.svc[k] !== undefined && s.time < f.svc[k]!);
+      if (on('fuel')) { const q = at(0.0, -0.45); this.fleet.add('camion_citerne', q.x, q.y, p.hdg); }
+      if (on('bags')) {
+        const q = at(-0.3, -0.17); this.fleet.add('tapis_bagages', q.x, q.y, toward(-0.17));
+        const q2 = at(-0.42, -0.4); this.fleet.add('train_bagages', q2.x, q2.y, p.hdg + Math.PI);
+      }
+      if (on('catering')) { const q = at(0.3, -0.24); this.fleet.add('catering', q.x, q.y, toward(-0.24) + Math.PI); }
+      if (on('cleaning')) { const q = at(-0.05, 0.42); this.fleet.add('voiture', q.x, q.y, p.hdg, '#f8fafc'); }
+      if (deice) { const q = at(0.1, 0.55); this.fleet.add('engin_degivrage', q.x, q.y, p.hdg); }
+    } else {
+      serviceVehicles(f, t).forEach((v) => {
+        const hdg = Math.atan2(v.y - p.y, v.x - p.x) + Math.PI / 2;
+        this.fleet.add(f.contact ? 'train_bagages' : 'bus_piste', v.x, v.y, hdg);
+      });
+    }
     // Poste éloigné : escalier mobile contre la porte avant
     if (!f.contact && (f.phase === 'boarding' || f.phase === 'deboarding')) {
       const fwd = a.length * 0.28;

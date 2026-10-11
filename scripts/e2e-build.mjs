@@ -1,6 +1,7 @@
 // Parcours tactile de construction dans le jeu compilé (réseau bloqué).
 import { chromium } from 'playwright-core';
 import { resolve } from 'node:path';
+import { serve } from './serve.mjs';
 
 const exe = process.env.CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const out = resolve(process.argv[2] || 'screenshots');
@@ -9,8 +10,9 @@ const ctx = await browser.newContext({ viewport: { width: 412, height: 860 }, de
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.route('**/*', (r) => (/^(file|data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
-await page.goto('file://' + resolve('index.html'));
+const srv = await serve('.');
+await page.route('**/*', (r) => (r.request().url().startsWith(srv.url) || /^(data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
+await page.goto(srv.url);
 await page.waitForTimeout(1500);
 await page.locator('.viewbar button', { hasText: '2D' }).click();
 // Écran de la case (x, y) en vue 2D.
@@ -112,4 +114,5 @@ check('retour en 3D depuis l\'intérieur', (await page.evaluate(() => window.gam
 
 console.log(errors.length ? 'ERREURS: ' + errors.join(' | ') : 'OK');
 await browser.close();
+srv.close();
 process.exit(errors.length ? 1 : 0);

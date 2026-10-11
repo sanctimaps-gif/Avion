@@ -12,6 +12,9 @@ export type VehicleModel =
   | 'bus'
   | 'bus_piste'
   | 'police'
+  | 'voiture_s13'
+  | 'tapis_bagages'
+  | 'catering'
   | 'camion_citerne'
   | 'tracteur_repoussage'
   | 'train_bagages'
@@ -26,6 +29,9 @@ const CAPACITY: Record<VehicleModel, number> = {
   bus: 16,
   bus_piste: 12,
   police: 12,
+  voiture_s13: 90,
+  tapis_bagages: 16,
+  catering: 16,
   camion_citerne: 24,
   tracteur_repoussage: 16,
   train_bagages: 24,
@@ -57,7 +63,7 @@ export class VehicleFleet {
   build(): boolean {
     if (this.ready) return true;
     for (const name of Object.keys(CAPACITY) as VehicleModel[]) {
-      const parts = vehicleParts(name, name === 'voiture' ? 'red' : undefined);
+      const parts = vehicleParts(name, name === 'voiture' || name === 'voiture_s13' ? 'red' : undefined);
       if (!parts) return false;
       const cap = CAPACITY[name];
       const meshes = parts.map((p) => {

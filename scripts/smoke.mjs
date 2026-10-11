@@ -4,11 +4,13 @@
 import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { serve } from './serve.mjs';
 
 const exe = process.env.CHROMIUM || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const out = resolve(process.argv[2] || 'screenshots');
 mkdirSync(out, { recursive: true });
-const url = 'file://' + resolve('index.html');
+const srv = await serve('.');
+const url = srv.url;
 const browser = await chromium.launch({ executablePath: exe, args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
 const ctx = await browser.newContext({ viewport: { width: 412, height: 860 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await ctx.newPage();
@@ -18,7 +20,7 @@ page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 await page.route('**/*', (route) => {
   const u = route.request().url();
-  if (u.startsWith('file:') || u.startsWith('data:') || u.startsWith('blob:')) return route.continue();
+  if (u.startsWith(url) || u.startsWith('data:') || u.startsWith('blob:')) return route.continue();
   requests.push(u);
   return route.abort();
 });
@@ -71,4 +73,5 @@ await page.screenshot({ path: `${out}/17-landscape.png` });
 console.log('external requests:', requests.length ? requests : 'none');
 console.log('errors:', errors.length ? errors : 'none');
 await browser.close();
+srv.close();
 if (errors.length || requests.length || !hasCanvas) process.exit(1);

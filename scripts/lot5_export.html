@@ -1,0 +1,54 @@
+<!doctype html><html><body>
+<canvas id="c" width="1600" height="800"></canvas>
+<script type="importmap">{"imports":{"three":"./nm/three/build/three.module.js","three/addons/":"./nm/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const tl = new THREE.TextureLoader();
+const tex = async (p) => { const t = await tl.loadAsync(p); t.colorSpace = THREE.SRGBColorSpace; return t; };
+const objmtl = async (dir, o, m) => { const mtl = await new MTLLoader().setPath(dir).loadAsync(m); mtl.preload(); return new OBJLoader().setMaterials(mtl).setPath(dir).loadAsync(o); };
+const only = new URLSearchParams(location.search).get('only');
+const items = {
+  q400: async () => {
+    const o = await new OBJLoader().loadAsync('bombardier-dash-q400-qantas-link/source/x/q400.obj');
+    const T = 'bombardier-dash-q400-qantas-link/textures/';
+    const tx = { Airplane_Color_Body: await tex(T + 'livery_Body_rgb.png'), Airplane_Color_Wings: await tex(T + 'livery_Wings_rgb.png'), Airplane_Color_Engine: await tex(T + 'livery_Engine_rgb.png') };
+    const C = { Airplane_Color: ['#eeeeee', 0.1, 0.5, 'white'], Airplane_Color_Red: ['#dc2626', 0.1, 0.5, 'red'], Red: ['#dc2626', 0.1, 0.5, 'red'], Grey: ['#9ca3af', 0.2, 0.6], Black: ['#111827', 0, 0.7],
+      Black_Metalic: ['#1f2937', 0.6, 0.4], Yellow_Metalic: ['#eab308', 0.5, 0.4], Wheels: ['#111111', 0, 0.9], Landing_Gear: ['#cbd5e1', 0.5, 0.4], Chrome: ['#e5e7eb', 0.9, 0.2], Glass: ['#0f172a', 0.3, 0.1, 'glass_cockpit'], Windows: ['#0b1220', 0.2, 0.2, 'windows'] };
+    const cache = {};
+    o.traverse(m => { if (!m.isMesh) return; m.material = [].concat(m.material).map(x => {
+      if (cache[x.name]) return cache[x.name];
+      let mm;
+      if (tx[x.name]) mm = new THREE.MeshStandardMaterial({ name: 'livtex', map: tx[x.name], roughness: 0.45, metalness: 0.1 });
+      else { const c = C[x.name] ?? ['#cccccc', 0, 0.6]; mm = new THREE.MeshStandardMaterial({ name: c[3] ?? x.name, color: c[0], metalness: c[1], roughness: c[2] }); }
+      return (cache[x.name] = mm); }); if (m.material.length === 1) m.material = m.material[0]; });
+    return o;
+  },
+  belt: async () => { const o = await new FBXLoader().loadAsync('low-poly-belt-loader/source/belt_loader.fbx'); const t = await tex('low-poly-belt-loader/textures/Cube Base Color.png'); o.traverse(m => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ map: t, roughness: 0.7 }); }); return o; },
+  catering: async () => (await new GLTFLoader().loadAsync('airport_catering_truck/scene.gltf')).scene,
+  nissan: async () => (await new GLTFLoader().loadAsync('1990-nissan-silvia-ks-diamond-selection-s13/source/1990 Nissan Silvia Ks Dia Selection (S13).glb')).scene,
+  terminal: async () => objmtl('terminal/source/x/', 'Teminal.obj', 'Teminal.mtl'),
+};
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), preserveDrawingBuffer: true, antialias: true });
+r.setScissorTest(true); r.setClearColor('#eef2f6'); r.clear();
+const out = {}, info = {}; let i = 0;
+for (const [name, load] of Object.entries(items)) {
+  if (only && !only.split(',').includes(name)) continue;
+  const o = await load(); await new Promise(r => setTimeout(r, 2000));
+  o.traverse(m => { if (!m.isMesh) return; m.material = [].concat(m.material).map(x => x.isMeshStandardMaterial ? x : new THREE.MeshStandardMaterial({ name: x.name, color: x.color, map: x.map ?? null, roughness: 0.8, transparent: x.transparent, opacity: x.opacity })); if (m.material.length === 1) m.material = m.material[0]; });
+  let tris = 0; o.traverse(m => { if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+  const box = new THREE.Box3().setFromObject(o, true); const s = box.getSize(new THREE.Vector3()); const c = box.getCenter(new THREE.Vector3());
+  info[name] = [Math.round(tris), s.toArray().map(v => +v.toFixed(2))];
+  const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x667788, 2.4)); const d = new THREE.DirectionalLight(0xffffff, 2); d.position.set(1, 2, 1.5); scene.add(d); scene.add(o);
+  const L = s.length(); const cam = new THREE.PerspectiveCamera(40, 1, L / 1000, L * 10); cam.position.set(c.x + L * 0.6, c.y + L * 0.5, c.z + L * 0.7); cam.lookAt(c);
+  const W = 320, x = (i % 5) * W; r.setViewport(x, 800 - W, W, W); r.setScissor(x, 800 - W, W, W); r.render(scene, cam); i++;
+  const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 2048 });
+  let bin = ''; const u8 = new Uint8Array(glb); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 0x8000));
+  out[name] = btoa(bin);
+}
+window.done = { out, info, names: window.q400names };
+</script></body></html>

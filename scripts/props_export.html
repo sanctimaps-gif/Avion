@@ -1,0 +1,28 @@
+<!doctype html><html><body>
+<script type="importmap">{"imports":{"three":"./nm/three/build/three.module.js","three/addons/":"./nm/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const tex = await new THREE.TextureLoader().loadAsync('airport-pack-total/src/Texture/Texture_airport256b.png');
+tex.colorSpace = THREE.SRGBColorSpace; tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+const pack = await new OBJLoader().loadAsync('airport-pack-total/src/Airport_PackTotal.obj');
+const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, name: 'pack' });
+pack.traverse(m => { if (m.isMesh) m.material = mat; });
+const P = { comptoir: '08.CheckInDesk', surete: '09.SecurityCheck', sieges: '10.Chairs', porte: '11.BoardingAreaDesk', kiosque: '13.Cafe', poubelle: '14.Trashcan', pub: '15.Advertising', panneau: '16.DepartureSign', dab: '17.4.Model', plante: '17.10.Model', poteau: '17.9.2.Model', valise: '17.7.Model' };
+const out = {}, info = {};
+for (const [name, prefix] of Object.entries(P)) {
+  const src = pack.children.find(c => c.name.startsWith(prefix));
+  const obj = src.clone(true); obj.position.set(0, 0, 0); obj.updateMatrixWorld(true);
+  const root = new THREE.Group(); root.add(obj); root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root, true); const c = box.getCenter(new THREE.Vector3());
+  obj.position.set(-c.x, -box.min.y, -c.z);
+  const s = box.getSize(new THREE.Vector3());
+  let tris = 0; root.traverse(m => { if (m.isMesh) tris += m.geometry.attributes.position.count / 3; });
+  info[name] = [Math.round(tris), s.toArray().map(v => +v.toFixed(2))];
+  const glb = await new GLTFExporter().parseAsync(root, { binary: true });
+  let bin = ''; const u8 = new Uint8Array(glb); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 0x8000));
+  out[name] = btoa(bin);
+}
+window.done = { out, info };
+</script></body></html>

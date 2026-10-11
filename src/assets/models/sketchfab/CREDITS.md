@@ -48,3 +48,16 @@ surfaces), « A Minimalist Airport Diorama » (1 million de triangles, diorama c
 Export des formats OBJ/DAE/FBX en GLB : `scripts/lot4_export.html`, puis `scripts/sketchfab_convert.mjs`.
 Non utilisés : « armazem-de-produtos-quimicos » (charpente sans murs ni toit), « airport-pack-total »
 et « airport_final_big_scene » (déjà intégrés).
+
+## Lot 5
+
+| Fichier | Modèle | Auteur | Licence |
+|---|---|---|---|
+| `catering.glb` (camion catering) | [Airport Catering Truck](https://sketchfab.com/spot1studios) | spot1studios | CC-BY 4.0 |
+| `q400.glb` (TP-70) | archive « bombardier-dash-q400-qantas-link » | inconnu | archive fournie sans licence ; livrée Qantas retirée (logos effacés, dérive repeinte aux couleurs des compagnies) |
+| `tapis_bagages.glb` | archive « low-poly-belt-loader » | inconnu | archive fournie sans licence |
+| `voiture_s13.glb` (voitures) | archive « 1990 Nissan Silvia S13 » | inconnu | archive fournie sans licence |
+| `../interieur/*.glb` (mobilier intérieur) | Airport Pack Total (comptoirs, portiques, sièges, kiosque, panneaux, plantes…) | inconnu | archive fournie sans licence |
+
+Non utilisés : « terminal » (bâtiment en ruine, 336 000 triangles), « airport_final_big_scene », « aircraft_hangar »,
+« airport-transport-pack » (déjà intégrés), « bicolour_gravel » (texture de sol, gardée pour la refonte du sol).
