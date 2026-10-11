@@ -33,3 +33,18 @@ textures (boutique, café), intérieur du café retiré, sol de la forêt retir�
 
 Non utilisés : « ancienne centrale charbon Gardanne » et « Foret d'automne » (nuages de points, pas de
 surfaces), « A Minimalist Airport Diorama » (1 million de triangles, diorama complet).
+
+## Lot 4
+
+| Fichier | Modèle | Auteur | Licence |
+|---|---|---|---|
+| `hangar_fret.glb` (terminal cargo) | [Aircraft Hangar](https://sketchfab.com/3d-models/aircraft-hangar-a5b17ba2e3494873abd313f720097614) | jimbogies | CC-BY 4.0 (avion et cartons intérieurs retirés) |
+| `a380.glb` (SJ-550) | archive « a380 » (OBJ) | inconnu | archive fournie sans licence, usage privé |
+| `centrale.glb` (centrale électrique) | archive « energie-electrique-geothermale » (DAE) | inconnu | archive fournie sans licence ; terrain, sous-sol, route et pylônes retirés |
+| `station.glb` (dépôt de carburant) | archive « station-essence-regouper » (FBX) | inconnu | archive fournie sans licence |
+| `solaire.glb` (centrale solaire) | archive « solar-panels » (FBX) | inconnu | archive fournie sans licence ; panneaux recolorés |
+| `immeuble.glb` (administration) | archive « minecraft-immeuble-building » (OBJ) | inconnu | archive fournie sans licence |
+
+Export des formats OBJ/DAE/FBX en GLB : `scripts/lot4_export.html`, puis `scripts/sketchfab_convert.mjs`.
+Non utilisés : « armazem-de-produtos-quimicos » (charpente sans murs ni toit), « airport-pack-total »
+et « airport_final_big_scene » (déjà intégrés).

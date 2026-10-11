@@ -200,7 +200,8 @@ const MODEL_CREDITS = [
   '« Train » — abhayexe (CC-BY 4.0)',
   '« Japanese bus "Nagoya City Bus" » — VRC-IW (CC-BY-NC 4.0)',
   '« Woolworths Big W Australian Commercial Building » — JoTrain The Aussie (Sketchfab Standard)',
-  'Airport Pack Total, Airbus A320, Airbus A330-300 — archives fournies',
+  '« Aircraft Hangar » — jimbogies (CC-BY 4.0)',
+  'Airport Pack Total, Airbus A320, Airbus A330-300, A380, centrale géothermique, station-service, panneaux solaires, immeuble — archives fournies',
 ];
 
 export function logPanel(app: App): HTMLElement {

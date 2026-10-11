@@ -10,6 +10,14 @@ const [inDir, outDir, only] = process.argv.slice(2);
 // ratio : part de triangles gardée ; tex : taille max des textures ; loose : simplification sans normales
 // len : longueur cible en mètres selon l'axe long (véhicules) ; rotY : rotation (rad) ; copies : [n, pas en m] le long de X
 const JOBS = {
+  // Lot 4 (dossier exp4 : exports GLB des fichiers OBJ/DAE/FBX)
+  a380: { src: 'a380.glb', ratio: 0.025, tex: 512, loose: true, bake: true },
+  entrepot: { src: 'entrepot.glb', ratio: 0.1, tex: 256, loose: true },
+  centrale: { src: 'centrale.glb', ratio: 0.12, tex: 256, loose: true, bake: true, ground: 0, minZ: -21 },
+  immeuble: { src: 'immeuble.glb', ratio: 0.06, tex: 256, loose: true, bake: true },
+  solaire: { src: 'solaire.glb', ratio: 0.15, tex: 256, loose: true },
+  station: { src: 'station.glb', ratio: 0.08, tex: 256, loose: true, bake: true },
+  hangar_fret: { src: 'hangar_src.glb', ratio: 1, tex: 256, drop: /^(Plane_Body|Body_Plane|cardboard|Tape|0046_Gold|edge_color|Steel_Roughness)/ },
   boutique: { src: 'corner_shop__stylized_tier_i/scene.gltf', ratio: 0.01, tex: 512, loose: true, bake: true },
   cafe: { src: 'caffe_bernini/f1fb4934-caffe_bernini.glb', ratio: 0.12, err: 0.05, loose: true, bake: true, bakeEmissive: true, gain: 2.2, tex: 512, drop: /^(Inside|Stuff|Glass|Aeropress)/ },
   hors_taxes: { src: 'woolworths_big_w_australian_commercial_building/4a4ba12e-woolworths_big_w_australian_commercial_building.glb', ratio: 0.5, tex: 512 },
@@ -32,6 +40,18 @@ for (const [out, j] of Object.entries(JOBS)) {
   // Nuages de points et lignes : supprimés.
   for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) if (p.getMode() !== 4) p.dispose();
   if (j.drop) for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) if (j.drop.test(p.getMaterial()?.getName() ?? '')) p.dispose();
+  if (j.ground !== undefined) {
+    // Parties souterraines et grand sol plat retirés (le sol du jeu les remplace).
+    for (const node of doc.getRoot().listNodes()) {
+      const mesh = node.getMesh(); if (!mesh) continue; const wm = node.getWorldMatrix();
+      for (const p of mesh.listPrimitives()) {
+        const a = p.getAttribute('POSITION'); let lo = 1e9, hi = -1e9, zlo = 1e9; const v = [0, 0, 0];
+        for (let i = 0; i < a.getCount(); i++) { a.getElement(i, v); const y = wm[1] * v[0] + wm[5] * v[1] + wm[9] * v[2] + wm[13]; lo = Math.min(lo, y); hi = Math.max(hi, y); zlo = Math.min(zlo, wm[2] * v[0] + wm[6] * v[1] + wm[10] * v[2] + wm[14]); }
+        const n = (p.getIndices()?.getCount() ?? a.getCount()) / 3;
+        if (lo < j.ground - 0.5 || (hi - lo < 0.05 && n > 10000) || (j.minZ !== undefined && zlo < j.minZ)) p.dispose();
+      }
+    }
+  }
   const before = triCount(doc);
   await doc.transform(prune(), dedup(), flatten(), join());
   if (j.metal) for (const mt of doc.getRoot().listMaterials()) { mt.setMetallicFactor(Math.min(mt.getMetallicFactor(), 0.2)); mt.setMetallicRoughnessTexture(null); }
@@ -75,7 +95,7 @@ for (const [out, j] of Object.entries(JOBS)) {
       const pos = new Float32Array(p.getAttribute('POSITION').getArray());
       const target = Math.max(36, Math.floor((n * j.ratio) / 3) * 3);
       let res;
-      try { res = MeshoptSimplifier.simplify(new Uint32Array(idx.getArray()), pos, 3, target, j.err ?? 0.2, ['Prune']); }
+      try { res = MeshoptSimplifier.simplify(new Uint32Array(idx.getArray()), pos, 3, target, j.err ?? 0.2, j.noPrune ? [] : ['Prune']); }
       catch { res = MeshoptSimplifier.simplify(new Uint32Array(idx.getArray()), pos, 3, target, 0.2, []); }
       idx.setArray(new Uint32Array(res[0])); compactPrimitive(p);
     }

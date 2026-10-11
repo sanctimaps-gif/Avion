@@ -8,7 +8,6 @@ import parkingUrl from '../assets/models/parking.glb?inline';
 import hotelUrl from '../assets/models/hotel.glb?inline';
 import propUrl from '../assets/models/turbopropulseur.glb?inline';
 import mediumUrl from '../assets/models/moyen_courrier.glb?inline';
-import heavyUrl from '../assets/models/gros_porteur.glb?inline';
 import carUrl from '../assets/models/vehicules/voiture.glb?inline';
 import fuelUrl from '../assets/models/vehicules/camion_citerne.glb?inline';
 import tugUrl from '../assets/models/vehicules/tracteur_repoussage.glb?inline';
@@ -27,6 +26,12 @@ import forestUrl from '../assets/models/sketchfab/foret.glb?inline';
 import cityBusUrl from '../assets/models/sketchfab/bus_ville.glb?inline';
 import policeUrl from '../assets/models/sketchfab/police.glb?inline';
 import trainUrl from '../assets/models/sketchfab/train_sf.glb?inline';
+import a380Url from '../assets/models/sketchfab/a380.glb?inline';
+import powerUrl from '../assets/models/sketchfab/centrale.glb?inline';
+import fuelStationUrl from '../assets/models/sketchfab/station.glb?inline';
+import solarUrl from '../assets/models/sketchfab/solaire.glb?inline';
+import cargoUrl from '../assets/models/sketchfab/hangar_fret.glb?inline';
+import adminUrl from '../assets/models/sketchfab/immeuble.glb?inline';
 import termPack1Url from '../assets/models/pack/terminal_pack1.glb?inline';
 import termPack2Url from '../assets/models/pack/terminal_pack2.glb?inline';
 import stairsUrl from '../assets/models/pack/escalier_pack.glb?inline';
@@ -51,7 +56,6 @@ const SOURCES: Record<string, string> = {
   hotel: hotelUrl,
   turbopropulseur: propUrl,
   moyen_courrier: mediumUrl,
-  gros_porteur: heavyUrl,
   voiture: carUrl,
   bus: cityBusUrl,
   police: policeUrl,
@@ -75,6 +79,12 @@ const SOURCES: Record<string, string> = {
   abribus: busStopUrl,
   gare: stationUrl,
   foret: forestUrl,
+  a380: a380Url,
+  centrale: powerUrl,
+  station_carburant: fuelStationUrl,
+  solaire: solarUrl,
+  hangar_fret: cargoUrl,
+  immeuble: adminUrl,
   // Pièces de « Airport Pack Total », Airbus A320 et A330-300 (archives fournies) — voir pack/CREDITS.md
   terminal_pack1: termPack1Url,
   terminal_pack2: termPack2Url,
@@ -147,6 +157,11 @@ const BUILDING_MODELS: Record<string, [string, number, number?, boolean?, number
   bus_station: ['abribus', 0],
   train_station: ['gare', 0],
   trees: ['foret', 0, undefined, undefined, 0.9],
+  power_plant: ['centrale', 0],
+  fuel_depot: ['station_carburant', 0],
+  solar: ['solaire', 0],
+  cargo: ['hangar_fret', 0],
+  admin: ['immeuble', 0],
 };
 
 /** Avion du jeu → modèle. */
@@ -157,10 +172,10 @@ const AIRCRAFT_MODELS: Record<string, string> = {
   nb220: 'a320',
   wb300: 'a330',
   wb380: 'a330',
-  sj550: 'gros_porteur',
+  sj550: 'a380',
 };
 /** Direction du nez dans le modèle (par défaut +Z). */
-const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion3_bs: '-X' };
+const NOSE: Record<string, '+X' | '-X' | '+Z'> = { avion3_bs: '-X', a380: '-X' };
 /** Matériaux portant la couleur de la compagnie. */
 const LIVERY = new Set(['red', 'blue', 'navy']);
 

@@ -1,0 +1,45 @@
+<!doctype html><html><body>
+<script type="importmap">{"imports":{"three":"./nm/three/build/three.module.js","three/addons/":"./nm/three/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { ColladaLoader } from 'three/addons/loaders/ColladaLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+const objmtl = async (dir, o, m) => { const mtl = await new MTLLoader().setPath(dir).loadAsync(m); mtl.preload(); return new OBJLoader().setMaterials(mtl).setPath(dir).loadAsync(o); };
+const items = {
+  a380: () => objmtl('a380/source/x/', 'A380.obj', 'A380.mtl'),
+  entrepot: () => new OBJLoader().loadAsync('armazem-de-produtos-quimicos/source/x/entrepot.obj'),
+  centrale: () => new ColladaLoader().loadAsync('energie-electrique-geothermale/source/x/geothermal3.dae').then(g => g.scene),
+  immeuble: () => objmtl('minecraft-immeuble-building/source/x/', 'Mineways2Skfb.obj', 'Mineways2Skfb.mtl'),
+  solaire: () => new FBXLoader().loadAsync('solar-panels/source/x/SolarPanels.fbx'),
+  station: () => new FBXLoader().setResourcePath('station-essence-regouper/textures/').loadAsync('station-essence-regouper/source/station_essence regouper.fbx'),
+};
+const out = {}, info = {};
+for (const [name, load] of Object.entries(items)) {
+  const o = await load();
+  await new Promise(r => setTimeout(r, 2500));
+  const drop = [];
+  o.traverse(m => {
+    if (m.isLine || m.isLineSegments || m.isPoints) drop.push(m);
+    if (!m.isMesh) return;
+    const mats = [].concat(m.material);
+    if (name === 'centrale' && mats.some(x => /Grass|Dirt|Blacktop|Concrete3/i.test(x.map?.image?.src ?? x.map?.name ?? ''))) drop.push(m);
+    for (const x of mats) {
+      if (name === 'solaire') { x.color = new THREE.Color('#1e3a8a'); }
+      if (name === 'entrepot') { x.color = new THREE.Color('#cbd5e1'); }
+      x.side = THREE.FrontSide;
+    }
+  });
+  drop.forEach(m => m.parent.remove(m));
+  // Phong → Standard pour l'export
+  o.traverse(m => { if (!m.isMesh) return; m.material = [].concat(m.material).map(x => { if (x.isMeshStandardMaterial) return x; const s = new THREE.MeshStandardMaterial({ name: x.name, color: x.color, map: x.map ?? null, transparent: x.transparent, opacity: x.opacity, roughness: 0.8, metalness: 0, vertexColors: x.vertexColors, alphaTest: x.alphaTest }); return s; }); if (m.material.length === 1) m.material = m.material[0]; });
+  let tris = 0; o.traverse(m => { if (m.isMesh) tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3; });
+  info[name] = [Math.round(tris), drop.length];
+  const glb = await new GLTFExporter().parseAsync(o, { binary: true, maxTextureSize: 1024 });
+  let bin = ''; const u8 = new Uint8Array(glb); for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 0x8000));
+  out[name] = btoa(bin);
+}
+window.done = { out, info };
+</script></body></html>

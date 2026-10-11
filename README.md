@@ -54,7 +54,8 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
   grand, escalier mobile, camion de pompiers, bus de piste, train de bagages (« Airport Pack Total »),
   Airbus A320 (NB-220) et A330-300 (WB-300/380) — allégés par `scripts/pack_*.mjs` ; boutique, café/restaurant,
   boutique hors taxes, R&D/formation, petit parking, gare routière, gare, bosquets, bus de ville, voiture de
-  police, train (modèles Sketchfab CC-BY, convertis par `scripts/sketchfab_convert.mjs`). Crédits aussi dans
+  police, train, A380 (SJ-550), centrale, dépôt de carburant, centrale solaire, fret, administration
+  (convertis par `scripts/sketchfab_convert.mjs`). Crédits aussi dans
   Réglages → « Crédits des modèles 3D ».
 - Véhicules 3D instanciés (`src/assets/models/vehicules/`, allégés par `scripts/lowpoly_vehicles.py`) :
   voitures et bus sur les routes et l'autoroute, camion-citerne, train de bagages, bus de piste,
@@ -89,7 +90,7 @@ Fonctionnel et testé (tests automatisés et/ou parcours dans Chromium) :
 Non réalisé / limites (honnêtement) :
 - **Multijoueur et services en ligne : non implémentés** (le jeu est volontairement 100 % hors ligne).
   Le classement compare uniquement les aéroports présents sur l'appareil.
-- Pas de son. Les bâtiments sans modèle importé (centrale, dépôts, ILS…) restent procéduraux.
+- Pas de son. Quelques éléments restent procéduraux (ILS, dégivrage, dépôt chasse-neige, jetée, modules du terminal…).
 - L'APK Android et le projet iOS n'ont pas pu être compilés ici (SDK Android inaccessible, pas de macOS) :
   la CI GitHub compile l'APK de débogage ; la publication sur les stores reste à faire (signature, comptes développeur).
 - La vue isométrique pivote par quarts de tour ; les passagers ne sont pas dessinés individuellement

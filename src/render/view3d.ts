@@ -276,8 +276,9 @@ export class View3D implements GameView {
       g.add(jw);
       return g;
     }
-    const dec = flatDecor(b.type, f.w, f.h, b.id);
     const imp = importedBuilding(b.type, f.w, f.h);
+    // Le parking importé garde ses voitures procédurales ; les autres modèles remplacent le décor.
+    const dec = imp && b.type !== 'parking_s' ? null : flatDecor(b.type, f.w, f.h, b.id);
     if (imp) {
       imp.position.y = 0.01;
       const holder = dec ?? new THREE.Group();
